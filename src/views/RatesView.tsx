@@ -9,6 +9,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react';
 import { ApiClient, type LiveRates, type CurrencyItem, type RealChartResult } from '../api/client';
+import { pluralize } from '../utils/plural';
 
 interface RatesViewProps {
   ratesData?: LiveRates | null;
@@ -873,7 +874,9 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
             <TrendingUp className="w-4 h-4 text-cyan-400" />
             <span>Каталог популярных валют</span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">{filteredItems.length} пар</span>
+          <span className="text-[11px] font-mono text-slate-400">
+            {pluralize(filteredItems.length, 'пара', 'пары', 'пар')}
+          </span>
         </div>
 
         {/* Поисковая строка */}

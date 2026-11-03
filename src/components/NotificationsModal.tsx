@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, CheckCheck, QrCode, ShieldCheck, CreditCard, Sparkles, Trash2, BellOff } from 'lucide-react';
+import { pluralize } from '../utils/plural';
 
 export interface NotificationItem {
   id: string;
@@ -137,7 +138,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                     <span>Уведомления</span>
                     {unreadCount > 0 && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 font-bold">
-                        {unreadCount} новых
+                        {pluralize(unreadCount, 'новое', 'новых', 'новых')}
                       </span>
                     )}
                   </h3>

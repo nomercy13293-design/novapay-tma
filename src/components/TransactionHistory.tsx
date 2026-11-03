@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Transaction } from '../types';
 import { ArrowDownLeft, CreditCard, QrCode } from 'lucide-react';
+import { pluralize } from '../utils/plural';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
@@ -31,7 +32,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transact
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold text-slate-100">История операций</h2>
         <span className="text-xs text-slate-400 font-mono">
-          {filtered.length} операций
+          {pluralize(filtered.length, 'операция', 'операции', 'операций')}
         </span>
       </div>
 
