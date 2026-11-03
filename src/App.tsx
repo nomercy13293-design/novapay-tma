@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { initialUser, initialCard, initialTransactions } from './data/mockData';
-import type { Transaction } from './types';
+import {
+  initialTransactions,
+  getInitialTelegramUser,
+  getInitialCard,
+  transliterateToLatin,
+  getFallbackAvatar,
+} from './data/mockData';
+import type { Transaction, UserProfile, CardInfo } from './types';
 import { Header } from './components/Header';
 import { BottomNav, type TabType } from './components/BottomNav';
 import { HomeView } from './views/HomeView';
@@ -19,8 +25,8 @@ import { ApiClient } from './api/client';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [user, setUser] = useState(initialUser);
-  const [card, setCard] = useState(initialCard);
+  const [user, setUser] = useState<UserProfile>(() => getInitialTelegramUser());
+  const [card, setCard] = useState<CardInfo>(() => getInitialCard(getInitialTelegramUser()));
   const [balanceUsdt, setBalanceUsdt] = useState<number>(1420.50);
   const [rate] = useState<number>(93.00);
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
@@ -43,17 +49,61 @@ export default function App() {
       tg.ready();
       tg.expand();
 
-      // Авторизация и подгрузка реального профиля Telegram
+      // Немедленное синхронное применение профиля из Telegram
+      if (tg.initDataUnsafe?.user) {
+        const u = tg.initDataUnsafe.user;
+        const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Пользователь';
+        const username = u.username ? `@${u.username}` : `@id${u.id}`;
+        const avatar = u.photo_url || getFallbackAvatar(name);
+
+        setUser((prev) => {
+          const updated: UserProfile = {
+            ...prev,
+            name,
+            username,
+            avatar: u.photo_url || prev.avatar || avatar,
+          };
+          try {
+            localStorage.setItem('novapay_user', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+
+        setCard((prev) => ({
+          ...prev,
+          cardholder: transliterateToLatin(name) || prev.cardholder,
+        }));
+      }
+
+      // Авторизация и подгрузка кошелька с бэкенда
       if (tg.initData) {
         ApiClient.authTelegram(tg.initData).then((res) => {
           if (res?.ok && res.user) {
             const u = res.user;
-            setUser((prev) => ({
+            const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Пользователь';
+            const username = u.username ? `@${u.username}` : `@id${u.id}`;
+
+            setUser((prev) => {
+              const updated: UserProfile = {
+                ...prev,
+                name: name || prev.name,
+                username: username || prev.username,
+                avatar: u.photo_url || prev.avatar,
+              };
+              try {
+                localStorage.setItem('novapay_user', JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
+
+            setCard((prev) => ({
               ...prev,
-              name: [u.first_name, u.last_name].filter(Boolean).join(' ') || prev.name,
-              username: u.username ? `@${u.username}` : prev.username,
-              avatar: u.photo_url || prev.avatar,
+              cardholder: transliterateToLatin(name) || prev.cardholder,
             }));
+
+            if (res.wallet?.balance_usdt !== undefined) {
+              setBalanceUsdt(parseFloat(res.wallet.balance_usdt));
+            }
           }
         });
       }

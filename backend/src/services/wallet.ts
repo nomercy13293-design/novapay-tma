@@ -52,7 +52,7 @@ export class WalletService {
           );
           await pool.query(
             'INSERT INTO cards (user_id, holder) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING',
-            [userId, (initialUsername || 'ALEX MIRONOV').toUpperCase()]
+            [userId, (initialUsername || 'NOVAPAY CLIENT').toUpperCase()]
           );
         }
 
@@ -61,11 +61,17 @@ export class WalletService {
 
         const cRes = await pool.query('SELECT * FROM cards WHERE user_id = $1', [userId]);
         const cardRow = cRes.rows[0] || {};
+        let currentHolder = cardRow.holder || (initialUsername || 'NOVAPAY CLIENT').toUpperCase();
+        if (currentHolder === 'ALEX MIRONOV') {
+          currentHolder = (initialUsername || 'NOVAPAY CLIENT').toUpperCase();
+          await pool.query('UPDATE cards SET holder = $1 WHERE user_id = $2', [currentHolder, userId]);
+        }
+
         const card = {
           pan: cardRow.pan || '4242 8491 2049 8831',
           exp: cardRow.exp || '09/29',
           cvv: cardRow.cvv || '849',
-          holder: cardRow.holder || (initialUsername || 'ALEX MIRONOV').toUpperCase(),
+          holder: currentHolder,
           isFrozen: Boolean(cardRow.is_frozen),
           monthlyLimitUsd: cardRow.monthly_limit_usd ? parseFloat(cardRow.monthly_limit_usd) : 10000,
           spentThisMonthUsd: cardRow.spent_this_month_usd ? parseFloat(cardRow.spent_this_month_usd) : 3450,
@@ -104,7 +110,7 @@ export class WalletService {
           pan: '4242 8491 2049 8831',
           exp: '09/29',
           cvv: '849',
-          holder: (initialUsername || 'ALEX MIRONOV').toUpperCase(),
+          holder: (initialUsername || 'NOVAPAY CLIENT').toUpperCase(),
           isFrozen: false,
           monthlyLimitUsd: 10000,
           spentThisMonthUsd: 3450,

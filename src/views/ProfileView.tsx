@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ShieldCheck, Sliders, HelpCircle, ChevronRight, ExternalLink } from 'lucide-react';
 import type { UserProfile } from '../types';
 import { SettingsModal } from '../components/SettingsModal';
+import { getFallbackAvatar } from '../data/mockData';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -33,6 +34,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ user, onOpenKyc }) => 
           <img
             src={user.avatar}
             alt={user.name}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = getFallbackAvatar(user.name);
+            }}
             className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-500/60 shadow-lg"
           />
           <div className="flex-1 min-w-0">

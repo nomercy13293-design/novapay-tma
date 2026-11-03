@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell } from 'lucide-react';
 import type { UserProfile } from '../types';
+import { getFallbackAvatar } from '../data/mockData';
 
 interface HeaderProps {
   user: UserProfile;
@@ -23,6 +24,9 @@ export const Header: React.FC<HeaderProps> = ({
         <img
           src={user.avatar}
           alt={user.name}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = getFallbackAvatar(user.name);
+          }}
           className="w-7 h-7 rounded-full object-cover"
         />
         <span className="text-xs font-semibold text-slate-200">

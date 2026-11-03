@@ -52,7 +52,7 @@ export async function initDb(): Promise<boolean> {
           pan VARCHAR(30) NOT NULL DEFAULT '4242 8491 2049 8831',
           exp VARCHAR(10) NOT NULL DEFAULT '09/29',
           cvv VARCHAR(10) NOT NULL DEFAULT '849',
-          holder VARCHAR(255) NOT NULL DEFAULT 'ALEX MIRONOV',
+          holder VARCHAR(255) NOT NULL DEFAULT 'NOVAPAY CLIENT',
           is_frozen BOOLEAN NOT NULL DEFAULT FALSE,
           monthly_limit_usd NUMERIC(18, 2) NOT NULL DEFAULT 10000,
           spent_this_month_usd NUMERIC(18, 2) NOT NULL DEFAULT 3450
