@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local media / graphics
+*.jpg
+*.jpeg
+cover_640x360.jpg
+avatar.jpg
