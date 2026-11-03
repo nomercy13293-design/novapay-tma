@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp,
   RefreshCw,
@@ -7,7 +7,6 @@ import {
   X,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
 } from 'lucide-react';
 import { ApiClient, type LiveRates, type CurrencyItem, type RealChartResult } from '../api/client';
 
@@ -468,15 +467,99 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
   };
 
   const hoveredTimeStr = useMemo(() => {
-    if (hoveredIndex !== null && chartPointTimes && chartPointTimes[hoveredIndex]) {
-      const d = new Date(chartPointTimes[hoveredIndex]);
+    if (hoveredIndex !== null) {
+      if (chartPointTimes && chartPointTimes[hoveredIndex]) {
+        const d = new Date(chartPointTimes[hoveredIndex]);
+        if (timeframe === '1D') {
+          return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
+        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Если точки локальные (fallback), интерполируем время назад от текущего момента
+      const now = Date.now();
+      const n = chartPoints.length;
+      const durationMs =
+        timeframe === '1D'
+          ? 24 * 3600 * 1000
+          : timeframe === '1W'
+          ? 7 * 24 * 3600 * 1000
+          : timeframe === '1M'
+          ? 30 * 24 * 3600 * 1000
+          : 365 * 24 * 3600 * 1000;
+      const fraction = hoveredIndex / Math.max(1, n - 1);
+      const estTime = now - (1 - fraction) * durationMs;
+      const d = new Date(estTime);
       if (timeframe === '1D') {
         return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
       }
       return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     }
     return null;
-  }, [hoveredIndex, chartPointTimes, timeframe]);
+  }, [hoveredIndex, chartPointTimes, chartPoints.length, timeframe]);
+
+  // Динамические метки оси X на основе реальной текущей даты (график заканчивается СЕГОДНЯ)
+  const dynamicAxisLabels = useMemo(() => {
+    const now = new Date();
+    const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
+    if (timeframe === '1D') {
+      const h24 = new Date(now.getTime() - 24 * 3600 * 1000);
+      const h18 = new Date(now.getTime() - 18 * 3600 * 1000);
+      const h12 = new Date(now.getTime() - 12 * 3600 * 1000);
+      const h6 = new Date(now.getTime() - 6 * 3600 * 1000);
+      const fmtH = (d: Date) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      return [
+        { label: fmtH(h24) },
+        { label: fmtH(h18) },
+        { label: fmtH(h12) },
+        { label: fmtH(h6) },
+        { label: 'Сейчас', isCurrent: true },
+      ];
+    }
+
+    if (timeframe === '1W') {
+      // 7 дней назад до СЕГОДНЯ (сегодняшний день недели всегда справа)
+      const d6 = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
+      const d4 = new Date(now.getTime() - 4.5 * 24 * 3600 * 1000);
+      const d3 = new Date(now.getTime() - 3 * 24 * 3600 * 1000);
+      const d1 = new Date(now.getTime() - 1.5 * 24 * 3600 * 1000);
+      const todayDay = dayNames[now.getDay()];
+
+      return [
+        { label: dayNames[d6.getDay()] },
+        { label: dayNames[d4.getDay()] },
+        { label: dayNames[d3.getDay()] },
+        { label: dayNames[d1.getDay()] },
+        { label: `${todayDay} (сегодня)`, isCurrent: true },
+      ];
+    }
+
+    if (timeframe === '1M') {
+      const fmtD = (daysAgo: number) => {
+        const d = new Date(now.getTime() - daysAgo * 24 * 3600 * 1000);
+        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }).replace('.', '');
+      };
+      return [
+        { label: fmtD(30) },
+        { label: fmtD(22) },
+        { label: fmtD(15) },
+        { label: fmtD(7) },
+        { label: 'Сегодня', isCurrent: true },
+      ];
+    }
+
+    // 1Y
+    const curM = now.getMonth();
+    return [
+      { label: `${monthNames[curM]} ${now.getFullYear() - 1}` },
+      { label: monthNames[(curM - 9 + 12) % 12] },
+      { label: monthNames[(curM - 6 + 12) % 12] },
+      { label: monthNames[(curM - 3 + 12) % 12] },
+      { label: 'Сейчас', isCurrent: true },
+    ];
+  }, [timeframe]);
 
   const activeChangeStr = useMemo(() => {
     if (realChartData && realChartData.symbol === selectedId && realChartData.timeframe === timeframe) {
@@ -589,7 +672,7 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
               </div>
             </div>
 
-            {/* Селектор таймфреймов */}
+            {/* Селектор таймфреймов с плавной анимацией скольжения */}
             <div className="flex gap-1 bg-slate-800/90 p-1 rounded-xl text-[10px] font-bold border border-slate-700/60 shadow-inner">
               {(['1D', '1W', '1M', '1Y'] as const).map((t) => {
                 const isActive = timeframe === t;
@@ -600,13 +683,18 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
                       setTimeframe(t);
                       setHoveredIndex(null);
                     }}
-                    className={`px-2 py-0.5 rounded-lg active:scale-95 transition-all duration-150 ${
-                      isActive
-                        ? 'bg-cyan-400 text-slate-950 font-black shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+                    className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                      isActive ? 'text-slate-950 font-black' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    <span>{t}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTimeframePill"
+                        className="absolute inset-0 bg-cyan-400 rounded-lg shadow-sm shadow-cyan-400/30"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                    <span className="relative z-10">{t}</span>
                   </button>
                 );
               })}
@@ -626,10 +714,6 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
               <span className="text-slate-300 font-semibold">
                 {displayMin >= 100 ? displayMin.toFixed(2) : displayMin.toFixed(4)}
               </span>
-            </div>
-            <div className="ml-auto text-[10px] text-cyan-400 font-sans flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              <span>Дотроньтесь для просмотра</span>
             </div>
           </div>
 
@@ -686,20 +770,39 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
                 opacity="0.4"
               />
 
-              {/* Заливка области под кривой */}
-              {fillD && <path d={fillD} fill={`url(#${themeFillId})`} />}
+              {/* Заливка области под кривой с плавной анимацией */}
+              <AnimatePresence mode="wait">
+                {fillD && (
+                  <motion.path
+                    key={`fill-${selectedId}-${timeframe}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    d={fillD}
+                    fill={`url(#${themeFillId})`}
+                  />
+                )}
+              </AnimatePresence>
 
-              {/* Основная плавная линия графика */}
-              {pathD && (
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke={themeStroke}
-                  strokeWidth="2.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
+              {/* Основная плавная линия графика с анимацией рисования */}
+              <AnimatePresence mode="wait">
+                {pathD && (
+                  <motion.path
+                    key={`path-${selectedId}-${timeframe}`}
+                    initial={{ pathLength: 0, opacity: 0.3 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
+                    d={pathD}
+                    fill="none"
+                    stroke={themeStroke}
+                    strokeWidth="2.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+              </AnimatePresence>
 
               {/* Маркер последней точки (пульсирует) */}
               {pointsCoords.length > 0 && hoveredIndex === null && (
@@ -749,41 +852,16 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
             </svg>
           </div>
 
-          {/* Временная шкала внизу графика */}
-          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 px-1">
-            {timeframe === '1D' && (
-              <>
-                <span>00:00</span>
-                <span>06:00</span>
-                <span>12:00</span>
-                <span>18:00</span>
-                <span className="text-cyan-400 font-bold">Сейчас</span>
-              </>
-            )}
-            {timeframe === '1W' && (
-              <>
-                <span>Пн</span>
-                <span>Ср</span>
-                <span>Пт</span>
-                <span>Сб</span>
-                <span className="text-cyan-400 font-bold">Вс</span>
-              </>
-            )}
-            {timeframe === '1M' && (
-              <>
-                <span>1 день</span>
-                <span>10 дней</span>
-                <span>20 дней</span>
-                <span className="text-cyan-400 font-bold">Сегодня</span>
-              </>
-            )}
-            {timeframe === '1Y' && (
-              <>
-                <span>12 мес назад</span>
-                <span>6 мес назад</span>
-                <span className="text-cyan-400 font-bold">Сейчас</span>
-              </>
-            )}
+          {/* Временная шкала внизу графика с реальными датами */}
+          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1.5 px-1">
+            {dynamicAxisLabels.map((item, idx) => (
+              <span
+                key={idx}
+                className={item.isCurrent ? 'text-cyan-400 font-bold' : undefined}
+              >
+                {item.label}
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -862,19 +940,14 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
                     : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 active:scale-98'
                 }`}
               >
-                {/* Левая часть: Иконка и название */}
+                {/* Левая часть: Иконка, название и валютная пара */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-lg shadow-sm flex-shrink-0">
                     {item.icon}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white truncate">{item.name}</span>
-                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 flex-shrink-0">
-                        {item.tag}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 truncate mt-0.5">{item.sub}</div>
+                    <span className="text-xs font-bold text-white truncate block">{item.name}</span>
+                    <span className="text-[11px] font-mono text-slate-400 block mt-0.5">{item.pair}</span>
                   </div>
                 </div>
 

@@ -67,6 +67,7 @@ interface NotificationsModalProps {
   onMarkAllRead: () => void;
   onDeleteNotification: (id: string) => void;
   onToggleRead?: (id: string) => void;
+  onTriggerTestNotification?: () => void;
 }
 
 export const NotificationsModal: React.FC<NotificationsModalProps> = ({
@@ -76,6 +77,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   onMarkAllRead,
   onDeleteNotification,
   onToggleRead,
+  onTriggerTestNotification,
 }) => {
   const unreadCount = notifications.filter((n) => n.isUnread).length;
 
@@ -161,6 +163,19 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Quick action: Отправить тестовое уведомление */}
+            {onTriggerTestNotification && (
+              <div className="pt-3 pb-1 flex-shrink-0">
+                <button
+                  onClick={onTriggerTestNotification}
+                  className="w-full py-2 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 transition-all shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Отправить тестовое уведомление</span>
+                </button>
+              </div>
+            )}
 
             {/* Notification Items List - Constant container height, smooth layout */}
             <div className="flex-1 overflow-y-auto space-y-2 py-3 pr-1">

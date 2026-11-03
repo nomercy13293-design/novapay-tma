@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { TelegramService } from '../services/telegram.js';
+import { config } from '../config/env.js';
 
 export const telegramRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -21,6 +22,39 @@ export const telegramRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     return reply.status(200).send({ ok: true });
+  });
+
+  /**
+   * Тестовое уведомление для пользователя в Telegram
+   */
+  fastify.post('/test-notification', async (request, reply) => {
+    const { chatId } = (request.body as any) || {};
+    if (!chatId) {
+      return reply.status(400).send({ ok: false, error: 'chatId is required' });
+    }
+
+    const text = [
+      `🔔 <b>Тестовое уведомление NovaPay</b>`,
+      ``,
+      `⚡ Проверка системы оповещений прошла успешно!`,
+      `💳 Ваша виртуальная карта Visa Platinum активна.`,
+      `💰 Баланс синхронизирован, push-оповещения в Telegram работают.`,
+      ``,
+      `<i>Время отправки: ${new Date().toLocaleTimeString('ru-RU')}</i>`,
+    ].join('\n');
+
+    const res = await TelegramService.sendMessage(chatId, text, {
+      inline_keyboard: [
+        [
+          {
+            text: '🚀 Открыть NovaPay',
+            web_app: { url: config.appUrl },
+          },
+        ],
+      ],
+    });
+
+    return reply.send({ ok: res?.ok ?? true, result: res });
   });
 
   /**

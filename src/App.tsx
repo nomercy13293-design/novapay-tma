@@ -226,6 +226,23 @@ export default function App() {
 
     setTransactions([newTx, ...transactions]);
 
+    const newNotif: NotificationItem = {
+      id: `notif-sbp-${Date.now()}`,
+      category: 'payment',
+      title: 'Оплата по СБП прошла успешно',
+      description: `Списано ${amountRub.toLocaleString('ru-RU')} ₽ (${amountUsdt} USDT) в пользу «${merchant}».`,
+      timestamp: 'Только что',
+      isUnread: true,
+      icon: 'payment',
+    };
+    setNotifications((prev) => {
+      const updated = [newNotif, ...prev];
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     showNotification(
       `✅ Оплата ${amountRub.toLocaleString('ru-RU')} ₽ в «${merchant}» проведена! Списано ${amountUsdt} USDT. Баланс: $${newBalance} USDT`
     );
@@ -248,6 +265,23 @@ export default function App() {
     };
 
     setTransactions([newTx, ...transactions]);
+
+    const newNotif: NotificationItem = {
+      id: `notif-dep-${Date.now()}`,
+      category: 'payment',
+      title: 'Ввод USDT зачислен на счет',
+      description: `+${amount}.00 USDT в сети TON успешно зачислены на ваш баланс. Новый баланс: $${newBalance} USDT.`,
+      timestamp: 'Только что',
+      isUnread: true,
+      icon: 'crypto',
+    };
+    setNotifications((prev) => {
+      const updated = [newNotif, ...prev];
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     showNotification(
       `📥 Пополнение счета на +${amount} USDT зачислено! Новый баланс: $${newBalance} USDT`
@@ -293,9 +327,61 @@ export default function App() {
 
     setTransactions([newTx, ...transactions]);
 
+    const newNotif: NotificationItem = {
+      id: `notif-trans-${Date.now()}`,
+      category: 'payment',
+      title: 'Перевод выполнен',
+      description: `Списано ${amountUsdt} USDT (${methodTitle}). Новый баланс: $${newBalance} USDT.`,
+      timestamp: 'Только что',
+      isUnread: true,
+      icon: 'payment',
+    };
+    setNotifications((prev) => {
+      const updated = [newNotif, ...prev];
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     showNotification(
       `📤 Перевод на $${amountUsdt.toFixed(2)} USDT отправлен (${recipient})! Новый баланс: $${newBalance} USDT`
     );
+  };
+
+  const handleTriggerTestNotification = async () => {
+    const newNotif: NotificationItem = {
+      id: `test-notif-${Date.now()}`,
+      category: 'system',
+      title: '⚡ Тестовое уведомление NovaPay',
+      description: 'Система уведомлений работает штатно. Баланс и push-оповещения активны.',
+      timestamp: 'Только что',
+      isUnread: true,
+      icon: 'security',
+    };
+
+    setNotifications((prev) => {
+      const updated = [newNotif, ...prev];
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tg = (window as any).Telegram?.WebApp;
+    try {
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } catch {}
+
+    const tgUser = tg?.initDataUnsafe?.user;
+    if (tgUser?.id) {
+      try {
+        await ApiClient.sendTestNotification(tgUser.id);
+      } catch {}
+    }
+
+    showNotification('🔔 Тестовое уведомление создано и отправлено в Telegram!');
   };
 
   // Freeze/unfreeze card
@@ -420,6 +506,7 @@ export default function App() {
         onMarkAllRead={handleMarkAllNotificationsRead}
         onDeleteNotification={handleDeleteNotification}
         onToggleRead={handleToggleNotificationRead}
+        onTriggerTestNotification={handleTriggerTestNotification}
       />
 
       {/* KYC Modal */}

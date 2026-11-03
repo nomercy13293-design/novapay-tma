@@ -219,4 +219,14 @@ export class ApiClient {
     }
     return null;
   }
+
+  /**
+   * Отправить тестовое push-уведомление в Telegram
+   */
+  public static async sendTestNotification(chatId: number | string): Promise<{ ok: boolean } | null> {
+    return this.request<{ ok: boolean }>('/api/telegram/test-notification', {
+      method: 'POST',
+      body: JSON.stringify({ chatId }),
+    });
+  }
 }
