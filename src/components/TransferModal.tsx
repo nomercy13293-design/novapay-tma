@@ -28,6 +28,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 }) => {
   const [method, setMethod] = useState<TransferMethod>('telegram');
   const [recipient, setRecipient] = useState<string>('');
+  const [selectedBank, setSelectedBank] = useState<string>('Т-Банк');
   const [amount, setAmount] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -68,7 +69,12 @@ export const TransferModal: React.FC<TransferModalProps> = ({
         console.error(e);
       }
 
-      onSuccessTransfer(recipient, method, numAmount);
+      const finalRecipient =
+        method === 'sbp' && !recipient.includes('(')
+          ? `${recipient} (${selectedBank})`
+          : recipient;
+
+      onSuccessTransfer(finalRecipient, method, numAmount);
 
       setTimeout(() => {
         setIsSuccess(false);
@@ -274,15 +280,35 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                           { name: 'Сбербанк', badge: 'СБП' },
                           { name: 'Альфа-Банк', badge: 'СБП' },
                           { name: 'ВТБ', badge: 'СБП' },
-                        ].map((bank) => (
-                          <div
-                            key={bank.name}
-                            className="p-2 rounded-xl border bg-slate-800/60 border-slate-700/60 text-slate-300 flex-shrink-0 text-left"
-                          >
-                            <div className="text-[11px] font-semibold text-white">{bank.name}</div>
-                            <div className="text-[10px] text-blue-400">{bank.badge}</div>
-                          </div>
-                        ))}
+                        ].map((bank) => {
+                          const isSelected = selectedBank === bank.name;
+                          return (
+                            <button
+                              key={bank.name}
+                              type="button"
+                              onClick={() => setSelectedBank(bank.name)}
+                              className={`p-2 rounded-xl border flex-shrink-0 text-left transition-all active:scale-95 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-600/25 border-blue-500 text-white shadow-md shadow-blue-600/20 ring-1 ring-blue-500/50'
+                                  : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                              }`}
+                            >
+                              <div className="text-[11px] font-semibold text-white flex items-center gap-1.5">
+                                <span>{bank.name}</span>
+                                <span
+                                  className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                                    isSelected ? 'bg-blue-500 text-white' : 'bg-blue-500/20 text-blue-400'
+                                  }`}
+                                >
+                                  {bank.badge}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {isSelected ? '✓ Выбран' : 'СБП перевод'}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -341,10 +367,12 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                       {method === 'telegram' ? '0% (Бесплатно внутри NovaPay)' : method === 'crypto' ? '1.00 USDT' : '1.5%'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Скорость зачисления:</span>
-                    <span className="font-semibold text-slate-200">Мгновенно (0.5 сек)</span>
-                  </div>
+                  {method === 'sbp' && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Банк зачисления:</span>
+                      <span className="font-semibold text-blue-400">{selectedBank}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Balance warning */}
