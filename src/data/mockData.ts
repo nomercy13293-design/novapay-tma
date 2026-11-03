@@ -1,0 +1,88 @@
+import type { Transaction, UserProfile, CardInfo } from '../types';
+
+export const initialUser: UserProfile = {
+  name: 'Алексей Миронов',
+  username: '@alex_mironov',
+  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+  isKycVerified: true,
+  kycTier: 'Standard (До $15,000/мес)',
+};
+
+export const initialCard: CardInfo = {
+  panMasked: '•••• •••• •••• 8492',
+  panFull: '4258 9100 3482 8492',
+  cardholder: 'ALEXEY MIRONOV',
+  expiry: '11/29',
+  cvv: '624',
+  isFrozen: false,
+  type: 'visa_platinum',
+};
+
+export const initialTransactions: Transaction[] = [
+  {
+    id: 'tx-1',
+    type: 'sbp',
+    title: 'ВкусВилл',
+    category: 'Супермаркеты',
+    amountRub: 1480,
+    amountUsdt: 15.91,
+    rate: 93.00,
+    timestamp: 'Сегодня, 17:42',
+    status: 'completed',
+    icon: '🛒',
+  },
+  {
+    id: 'tx-2',
+    type: 'visa',
+    title: 'OpenAI (ChatGPT Plus)',
+    category: 'Подписки',
+    amountUsdt: 20.00,
+    timestamp: 'Вчера, 12:15',
+    status: 'completed',
+    icon: '🤖',
+  },
+  {
+    id: 'tx-3',
+    type: 'sbp',
+    title: 'Даблби Кофе',
+    category: 'Кафе и рестораны',
+    amountRub: 390,
+    amountUsdt: 4.19,
+    rate: 93.00,
+    timestamp: 'Вчера, 09:30',
+    status: 'completed',
+    icon: '☕',
+  },
+  {
+    id: 'tx-4',
+    type: 'deposit',
+    title: 'Пополнение USDT (TON)',
+    category: 'Криптовалюта',
+    amountUsdt: 500.00,
+    timestamp: '01 Ноя, 14:10',
+    status: 'completed',
+    icon: '💎',
+  },
+  {
+    id: 'tx-5',
+    type: 'sbp',
+    title: 'Лукойл АЗС',
+    category: 'Транспорт',
+    amountRub: 2500,
+    amountUsdt: 26.88,
+    rate: 93.00,
+    timestamp: '30 Окт, 19:20',
+    status: 'completed',
+    icon: '⛽',
+  },
+  {
+    id: 'tx-6',
+    type: 'visa',
+    title: 'Steam Games',
+    category: 'Игры',
+    amountUsdt: 14.50,
+    timestamp: '28 Окт, 21:04',
+    status: 'completed',
+    icon: '🎮',
+  },
+];
