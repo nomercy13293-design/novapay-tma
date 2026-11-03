@@ -28,3 +28,11 @@ dist-ssr
 *.jpeg
 cover_640x360.jpg
 avatar.jpg
+
+# Secrets & Environment variables
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
