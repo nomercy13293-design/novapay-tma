@@ -1,7 +1,11 @@
 import pg from 'pg';
 const { Pool } = pg;
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.STORAGE_URL ||
+  process.env.STORAGE_POSTGRES_URL;
 
 export const pool = connectionString
   ? new Pool({
