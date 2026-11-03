@@ -15,10 +15,11 @@ import { TransferModal } from './components/TransferModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { KycModal } from './components/KycModal';
 import { TelegramNotification } from './components/TelegramNotification';
+import { ApiClient } from './api/client';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [user] = useState(initialUser);
+  const [user, setUser] = useState(initialUser);
   const [card, setCard] = useState(initialCard);
   const [balanceUsdt, setBalanceUsdt] = useState<number>(1420.50);
   const [rate] = useState<number>(93.00);
@@ -34,13 +35,28 @@ export default function App() {
   // Telegram bot notification toast
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Telegram Web App auto-expand
+  // Telegram Web App auto-expand & auth
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
       tg.ready();
       tg.expand();
+
+      // Авторизация и подгрузка реального профиля Telegram
+      if (tg.initData) {
+        ApiClient.authTelegram(tg.initData).then((res) => {
+          if (res?.ok && res.user) {
+            const u = res.user;
+            setUser((prev) => ({
+              ...prev,
+              name: [u.first_name, u.last_name].filter(Boolean).join(' ') || prev.name,
+              username: u.username ? `@${u.username}` : prev.username,
+              avatar: u.photo_url || prev.avatar,
+            }));
+          }
+        });
+      }
     }
   }, []);
 
@@ -60,6 +76,20 @@ export default function App() {
   ) => {
     const newBalance = parseFloat((balanceUsdt - amountUsdt).toFixed(2));
     setBalanceUsdt(newBalance);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const userId = tgUser?.id || 1001;
+
+    // Вызываем бэкенд для создания чека в Telegram
+    ApiClient.paySbp({
+      userId,
+      merchant,
+      category,
+      amountRub,
+      amountUsdt,
+      rate,
+    });
 
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
@@ -109,6 +139,19 @@ export default function App() {
     const newBalance = parseFloat((balanceUsdt - amountUsdt).toFixed(2));
     setBalanceUsdt(newBalance);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const userId = tgUser?.id || 1001;
+
+    // Вызываем бэкенд для отправки уведомления в Telegram
+    ApiClient.transfer({
+      userId,
+      recipient,
+      method,
+      amountUsdt,
+      rate,
+    });
+
     const methodTitle =
       method === 'telegram'
         ? `Перевод в Telegram (${recipient})`
@@ -139,6 +182,12 @@ export default function App() {
   const handleToggleFreeze = () => {
     const nextState = !card.isFrozen;
     setCard({ ...card, isFrozen: nextState });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const userId = tgUser?.id || 1001;
+    ApiClient.toggleCardFreeze(userId);
+
     showNotification(
       nextState
         ? '🔒 Карта Visa временно заморожена. Онлайн-списания заблокированы.'
