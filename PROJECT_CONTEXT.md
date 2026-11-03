@@ -1,7 +1,9 @@
 # 🛡️ NovaPay — Документация и контекст проекта (Crypto Neo-Bank TMA)
 
 > **Документ актуализирован:** Ноябрь 2026 г.  
-> **Статус:** Этап 1 (Фронтенд MVP) завершен • Переход к деплою и бэкенду  
+> **Статус:** 🟢 Деплой успешен • Фронтенд в проде • Репозиторий на GitHub  
+> **GitHub Репозиторий:** [github.com/nomercy13293-design/novapay-tma](https://github.com/nomercy13293-design/novapay-tma)  
+> **Боевой Production URL:** [novapay-tma.vercel.app](https://novapay-tma.vercel.app)  
 > **Локация проекта:** `C:\Users\nomer\Desktop\я вайбкодер\миниапка`
 
 ---
