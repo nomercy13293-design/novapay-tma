@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, CheckCheck, QrCode, ShieldCheck, CreditCard, Sparkles, Trash2, BellOff } from 'lucide-react';
 
-interface NotificationItem {
+export interface NotificationItem {
   id: string;
   category: 'payment' | 'security' | 'system';
   title: string;
@@ -12,7 +12,7 @@ interface NotificationItem {
   icon: 'payment' | 'security' | 'crypto' | 'card';
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'notif-1',
     category: 'payment',
@@ -62,20 +62,29 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 
 interface NotificationsModalProps {
   isOpen: boolean;
+  notifications: NotificationItem[];
   onClose: () => void;
+  onMarkAllRead: () => void;
+  onDeleteNotification: (id: string) => void;
+  onToggleRead?: (id: string) => void;
 }
 
-export const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose }) => {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-
+export const NotificationsModal: React.FC<NotificationsModalProps> = ({
+  isOpen,
+  notifications,
+  onClose,
+  onMarkAllRead,
+  onDeleteNotification,
+  onToggleRead,
+}) => {
   const unreadCount = notifications.filter((n) => n.isUnread).length;
 
   const handleMarkAllRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, isUnread: false })));
+    onMarkAllRead();
   };
 
   const handleDelete = (id: string) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
+    onDeleteNotification(id);
   };
 
   const getIcon = (type: NotificationItem['icon']) => {
@@ -178,7 +187,8 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, 
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
                       transition={{ duration: 0.18, ease: 'easeOut' }}
-                      className={`p-3.5 rounded-2xl border transition-colors flex items-start gap-3 group relative ${
+                      onClick={() => onToggleRead?.(item.id)}
+                      className={`p-3.5 rounded-2xl border transition-colors flex items-start gap-3 group relative cursor-pointer ${
                         item.isUnread
                           ? 'bg-slate-800/80 border-emerald-500/30 shadow-sm'
                           : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-800/50'

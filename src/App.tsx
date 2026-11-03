@@ -18,7 +18,11 @@ import { ProfileView } from './views/ProfileView';
 import { SbpScannerModal } from './components/SbpScannerModal';
 import { DepositModal } from './components/DepositModal';
 import { TransferModal } from './components/TransferModal';
-import { NotificationsModal } from './components/NotificationsModal';
+import {
+  NotificationsModal,
+  INITIAL_NOTIFICATIONS,
+  type NotificationItem,
+} from './components/NotificationsModal';
 import { KycModal } from './components/KycModal';
 import { TelegramNotification } from './components/TelegramNotification';
 import { ApiClient, type LiveRates } from './api/client';
@@ -39,6 +43,47 @@ export default function App() {
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isKycOpen, setIsKycOpen] = useState(false);
+
+  // Persistent notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('novapay_notifications');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_NOTIFICATIONS;
+  });
+
+  const unreadNotificationsCount = notifications.filter((n) => n.isUnread).length;
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, isUnread: false }));
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleToggleNotificationRead = (id: string) => {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, isUnread: !n.isUnread } : n));
+      try {
+        localStorage.setItem('novapay_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
 
   // Telegram bot notification toast
   const [notification, setNotification] = useState<string | null>(null);
@@ -281,6 +326,7 @@ export default function App() {
       {/* Clean Header (User on left, Bell on right) */}
       <Header
         user={user}
+        hasUnreadNotifications={unreadNotificationsCount > 0}
         onOpenProfile={() => setActiveTab('profile')}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
@@ -369,7 +415,11 @@ export default function App() {
       {/* Notifications Drawer Modal */}
       <NotificationsModal
         isOpen={isNotificationsOpen}
+        notifications={notifications}
         onClose={() => setIsNotificationsOpen(false)}
+        onMarkAllRead={handleMarkAllNotificationsRead}
+        onDeleteNotification={handleDeleteNotification}
+        onToggleRead={handleToggleNotificationRead}
       />
 
       {/* KYC Modal */}

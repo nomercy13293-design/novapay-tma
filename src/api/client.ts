@@ -5,6 +5,21 @@ const API_URL =
     ? 'http://localhost:3001'
     : '';
 
+export interface RealChartPoint {
+  time: number;
+  price: number;
+}
+
+export interface RealChartResult {
+  symbol: string;
+  timeframe: string;
+  currentPrice: number;
+  changePercent: string;
+  high: number;
+  low: number;
+  points: RealChartPoint[];
+}
+
 export interface CurrencyItem {
   id: string;
   name: string;
@@ -189,6 +204,19 @@ export class ApiClient {
       }
     } catch {}
 
+    return null;
+  }
+
+  /**
+   * Получение реальных свечных данных графика из Binance / TonAPI
+   */
+  public static async getRealChart(symbol: string, timeframe: string): Promise<RealChartResult | null> {
+    const data = await this.request<{ ok: boolean; chart: RealChartResult }>(
+      `/api/rates/chart?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`
+    );
+    if (data && data.ok && data.chart) {
+      return data.chart;
+    }
     return null;
   }
 }

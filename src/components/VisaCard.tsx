@@ -66,17 +66,20 @@ export const VisaCard: React.FC<VisaCardProps> = ({ card, onToggleFreeze }) => {
         {/* Card Number */}
         <div 
           onClick={handleCopyPan}
-          className="cursor-pointer group flex items-center justify-between mb-4 py-1"
+          className="cursor-pointer group relative mb-4 py-1 select-none flex items-center justify-between"
           title="Нажмите, чтобы скопировать"
         >
-          <span className="font-mono text-lg font-bold tracking-widest text-slate-100 group-hover:text-emerald-300 transition-colors">
+          <span className="font-mono text-sm sm:text-base font-bold tracking-widest text-slate-100 group-hover:text-emerald-300 transition-colors whitespace-nowrap">
             {showDetails ? card.panFull : card.panMasked}
           </span>
-          {copied && (
-            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500 text-black font-semibold animate-fade-in">
-              Скопировано!
-            </span>
-          )}
+
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded bg-emerald-400 text-slate-950 font-bold whitespace-nowrap transition-all duration-200 shadow-md ${
+              copied ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
+            }`}
+          >
+            Скопировано!
+          </span>
         </div>
 
         {/* Card Footer: Holder, Expiry, CVV */}

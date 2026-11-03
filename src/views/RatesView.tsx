@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -9,7 +9,7 @@ import {
   ArrowDownRight,
   Sparkles,
 } from 'lucide-react';
-import type { LiveRates, CurrencyItem } from '../api/client';
+import { ApiClient, type LiveRates, type CurrencyItem, type RealChartResult } from '../api/client';
 
 interface RatesViewProps {
   ratesData?: LiveRates | null;
@@ -336,16 +336,42 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
 
+  // Реальные свечные данные из API
+  const [realChartData, setRealChartData] = useState<RealChartResult | null>(null);
+
   // Выбранный инструмент
   const activeItem = useMemo(() => {
     return items.find((x) => x.id === selectedId) || items[0];
   }, [items, selectedId]);
 
-  // Данные для графика
+  // Загрузка реальных рыночных свечей при смене пары или таймфрейма
+  useEffect(() => {
+    let isCancelled = false;
+    ApiClient.getRealChart(selectedId, timeframe).then((chart) => {
+      if (!isCancelled && chart && chart.points.length > 0) {
+        setRealChartData(chart);
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedId, timeframe]);
+
+  // Данные для графика: реальные рыночные свечи из API, либо точки из каталога
   const chartPoints = useMemo(() => {
+    if (realChartData && realChartData.symbol === selectedId && realChartData.timeframe === timeframe) {
+      return realChartData.points.map((p) => p.price);
+    }
     const raw = activeItem.history?.[timeframe] || [activeItem.price * 0.98, activeItem.price];
     return raw;
-  }, [activeItem, timeframe]);
+  }, [realChartData, selectedId, timeframe, activeItem]);
+
+  const chartPointTimes = useMemo(() => {
+    if (realChartData && realChartData.symbol === selectedId && realChartData.timeframe === timeframe) {
+      return realChartData.points.map((p) => p.time);
+    }
+    return null;
+  }, [realChartData, selectedId, timeframe]);
 
   // Мин / Макс для шкалы графика
   const { minVal, maxVal, displayMin, displayMax } = useMemo(() => {
@@ -441,6 +467,24 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
     setHoveredIndex(null);
   };
 
+  const hoveredTimeStr = useMemo(() => {
+    if (hoveredIndex !== null && chartPointTimes && chartPointTimes[hoveredIndex]) {
+      const d = new Date(chartPointTimes[hoveredIndex]);
+      if (timeframe === '1D') {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      }
+      return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+    return null;
+  }, [hoveredIndex, chartPointTimes, timeframe]);
+
+  const activeChangeStr = useMemo(() => {
+    if (realChartData && realChartData.symbol === selectedId && realChartData.timeframe === timeframe) {
+      return realChartData.changePercent;
+    }
+    return activeItem.change24h;
+  }, [realChartData, selectedId, timeframe, activeItem]);
+
   // Фильтрация расширенного каталога
   const filteredItems = useMemo(() => {
     let result = items;
@@ -461,7 +505,10 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
   }, [items, categoryFilter, searchQuery]);
 
   // Цветовая тема активной пары
-  const isPositiveTrend = activeItem.isPositive;
+  const isPositiveTrend = useMemo(() => {
+    return !activeChangeStr.startsWith('-') && !activeChangeStr.startsWith('−');
+  }, [activeChangeStr]);
+
   const themeStroke = isPositiveTrend ? '#06b6d4' : '#f43f5e';
   const themeFillId = isPositiveTrend ? 'cyanGrad' : 'roseGrad';
 
@@ -515,24 +562,30 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
               </div>
 
               {/* Большая динамическая цена */}
-              <div className="flex items-baseline gap-2.5 mt-1">
+              <div className="flex items-baseline gap-2 mt-1">
                 <div className="text-2xl font-black font-mono text-white tracking-tight transition-all">
                   {activeHoverPrice}
                 </div>
-                <div
-                  className={`flex items-center text-xs font-mono font-bold px-2 py-0.5 rounded-lg ${
-                    isPositiveTrend
-                      ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
-                      : 'text-rose-400 bg-rose-500/15 border border-rose-500/30'
-                  }`}
-                >
-                  {isPositiveTrend ? (
-                    <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
-                  ) : (
-                    <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />
-                  )}
-                  <span>{activeItem.change24h}</span>
-                </div>
+                {hoveredTimeStr ? (
+                  <div className="flex items-center text-[10px] font-mono font-semibold px-2 py-0.5 rounded-lg text-cyan-300 bg-cyan-950/60 border border-cyan-500/30">
+                    {hoveredTimeStr}
+                  </div>
+                ) : (
+                  <div
+                    className={`flex items-center text-xs font-mono font-bold px-2 py-0.5 rounded-lg ${
+                      isPositiveTrend
+                        ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
+                        : 'text-rose-400 bg-rose-500/15 border border-rose-500/30'
+                    }`}
+                  >
+                    {isPositiveTrend ? (
+                      <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
+                    ) : (
+                      <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />
+                    )}
+                    <span>{activeChangeStr}</span>
+                  </div>
+                )}
               </div>
             </div>
 

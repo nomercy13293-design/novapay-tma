@@ -5,12 +5,14 @@ import { getFallbackAvatar } from '../data/mockData';
 
 interface HeaderProps {
   user: UserProfile;
+  hasUnreadNotifications?: boolean;
   onOpenProfile: () => void;
   onOpenNotifications: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   user,
+  hasUnreadNotifications = false,
   onOpenProfile,
   onOpenNotifications,
 }) => {
@@ -41,7 +43,9 @@ export const Header: React.FC<HeaderProps> = ({
         className="w-9 h-9 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center relative active:scale-95 transition-all shadow-sm"
       >
         <Bell className="w-4 h-4" />
-        <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        {hasUnreadNotifications && (
+          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        )}
       </button>
     </header>
   );
