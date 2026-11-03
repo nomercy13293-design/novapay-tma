@@ -11,7 +11,7 @@ export const walletRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ ok: false, error: 'Неверный userId' });
     }
 
-    const wallet = WalletService.getOrCreateWallet(uid);
+    const wallet = await WalletService.getOrCreateWallet(uid);
     return { ok: true, wallet };
   });
 
@@ -22,7 +22,7 @@ export const walletRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ ok: false, error: 'Неверные параметры депозита' });
     }
 
-    const result = WalletService.processDeposit(userId, amountUsdt);
+    const result = await WalletService.processDeposit(userId, amountUsdt);
     return { ok: true, ...result };
   });
 
@@ -46,7 +46,7 @@ export const walletRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ ok: false, error: 'Заполните все поля перевода' });
     }
 
-    const result = WalletService.processTransfer(userId, recipient, method || 'telegram', amountUsdt, rate || 93.0);
+    const result = await WalletService.processTransfer(userId, recipient, method || 'telegram', amountUsdt, rate || 93.0);
     if (!result.success) {
       return reply.status(400).send({ ok: false, error: result.error });
     }
@@ -72,7 +72,7 @@ export const walletRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ ok: false, error: 'userId обязателен' });
     }
 
-    const isFrozen = WalletService.toggleCardFreeze(userId);
+    const isFrozen = await WalletService.toggleCardFreeze(userId);
     return { ok: true, isFrozen };
   });
 };

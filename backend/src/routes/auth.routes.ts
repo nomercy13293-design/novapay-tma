@@ -18,7 +18,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = validation.user?.id || 1001;
     const username = validation.user?.username || validation.user?.first_name || 'User';
 
-    const wallet = WalletService.getOrCreateWallet(userId, username);
+    const wallet = await WalletService.getOrCreateWallet(userId, username);
 
     return {
       ok: true,

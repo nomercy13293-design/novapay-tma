@@ -37,7 +37,7 @@ export const sbpRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ ok: false, error: 'Не все поля заполнены' });
     }
 
-    const result = WalletService.processSbpPayment(
+    const result = await WalletService.processSbpPayment(
       userId,
       merchant,
       category || 'Покупки',
