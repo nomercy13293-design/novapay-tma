@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { authRoutes } from '../backend/src/routes/auth.routes.js';
 import { sbpRoutes } from '../backend/src/routes/sbp.routes.js';
 import { walletRoutes } from '../backend/src/routes/wallet.routes.js';
+import { telegramRoutes } from '../backend/src/routes/telegram.routes.js';
 
 const app = Fastify({ logger: false });
 
@@ -22,6 +23,7 @@ async function init() {
     await app.register(authRoutes, { prefix: '/api/auth' });
     await app.register(sbpRoutes, { prefix: '/api/sbp' });
     await app.register(walletRoutes, { prefix: '/api/wallet' });
+    await app.register(telegramRoutes, { prefix: '/api/telegram' });
 
     await app.ready();
     isReady = true;

@@ -10,6 +10,7 @@ export const config = {
     .map((o) => o.trim()),
   usdtRubRate: parseFloat(process.env.USDT_RUB_RATE || '93.00'),
   sbpSpreadPercent: parseFloat(process.env.SBP_SPREAD_PERCENT || '1.5'),
+  appUrl: process.env.APP_URL || 'https://novapay-tma.vercel.app',
 };
 
 if (!config.botToken || config.botToken === 'YOUR_TELEGRAM_BOT_TOKEN_HERE') {

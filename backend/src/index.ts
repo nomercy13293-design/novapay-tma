@@ -4,6 +4,7 @@ import { config } from './config/env.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { sbpRoutes } from './routes/sbp.routes.js';
 import { walletRoutes } from './routes/wallet.routes.js';
+import { telegramRoutes } from './routes/telegram.routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -34,6 +35,7 @@ async function main() {
     await fastify.register(authRoutes, { prefix: '/api/auth' });
     await fastify.register(sbpRoutes, { prefix: '/api/sbp' });
     await fastify.register(walletRoutes, { prefix: '/api/wallet' });
+    await fastify.register(telegramRoutes, { prefix: '/api/telegram' });
 
     // Запуск сервера
     await fastify.listen({ port: config.port, host: config.host });
