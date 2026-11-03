@@ -19,12 +19,12 @@ export const VisaCard: React.FC<VisaCardProps> = ({ card, onToggleFreeze }) => {
 
   return (
     <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Международная карта (Visa Platinum)
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 truncate min-w-0 flex-1">
+          Visa Platinum
         </h2>
-        <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-          <CheckCircle2 className="w-3.5 h-3.5" /> В Apple Pay
+        <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-semibold whitespace-nowrap flex-shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> В Apple Pay
         </span>
       </div>
 
