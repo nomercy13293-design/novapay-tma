@@ -5,6 +5,27 @@ const API_URL =
     ? 'http://localhost:3001'
     : '';
 
+export interface CurrencyItem {
+  id: string;
+  name: string;
+  symbol: string;
+  pair: string;
+  price: number;
+  priceFormatted: string;
+  change24h: string;
+  isPositive: boolean;
+  category: 'ton' | 'crypto' | 'fiat';
+  tag: string;
+  icon: string;
+  sub: string;
+  history: {
+    '1D': number[];
+    '1W': number[];
+    '1M': number[];
+    '1Y': number[];
+  };
+}
+
 export interface LiveRates {
   ok: boolean;
   source: 'tonapi' | 'cache' | 'fallback';
@@ -23,6 +44,7 @@ export interface LiveRates {
     usdtEur: string;
     usdtUsd: string;
   };
+  items?: CurrencyItem[];
 }
 
 export interface AuthResponse {

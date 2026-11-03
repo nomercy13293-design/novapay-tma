@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, RefreshCw, Zap } from 'lucide-react';
-import type { LiveRates } from '../api/client';
+import React, { useState, useRef, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import {
+  TrendingUp,
+  RefreshCw,
+  Search,
+  X,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
+} from 'lucide-react';
+import type { LiveRates, CurrencyItem } from '../api/client';
 
 interface RatesViewProps {
   ratesData?: LiveRates | null;
@@ -9,79 +17,453 @@ interface RatesViewProps {
   onRefresh?: () => void;
 }
 
+type Timeframe = '1D' | '1W' | '1M' | '1Y';
+type CategoryFilter = 'all' | 'ton' | 'crypto' | 'fiat';
+
+// Резервный каталог популярных валют, если данные еще грузятся
+const fallbackItems: CurrencyItem[] = [
+  {
+    id: 'USDT/RUB',
+    name: 'Tether (СБП)',
+    symbol: 'USDT',
+    pair: 'USDT / RUB',
+    price: 81.1,
+    priceFormatted: '81.10 ₽',
+    change24h: '+0.46%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'СБП РФ (НСПК)',
+    icon: '💵',
+    sub: 'Шлюз оплат в рублях без 115-ФЗ',
+    history: {
+      '1D': [80.7, 80.85, 80.9, 81.0, 81.15, 81.05, 81.1, 81.1],
+      '1W': [80.2, 80.4, 80.6, 80.9, 80.8, 81.0, 81.1],
+      '1M': [78.5, 79.1, 79.8, 80.2, 80.6, 80.9, 81.1],
+      '1Y': [72.0, 75.4, 78.2, 82.0, 84.5, 83.1, 81.1],
+    },
+  },
+  {
+    id: 'TON/USD',
+    name: 'Toncoin',
+    symbol: 'TON',
+    pair: 'TON / USD',
+    price: 1.168,
+    priceFormatted: '$1.168',
+    change24h: '−2.41%',
+    isPositive: false,
+    category: 'ton',
+    tag: 'TON Core L1',
+    icon: '💎',
+    sub: 'Нативная монета блокчейна TON',
+    history: {
+      '1D': [1.198, 1.192, 1.185, 1.179, 1.172, 1.169, 1.168],
+      '1W': [1.22, 1.21, 1.19, 1.18, 1.17, 1.165, 1.168],
+      '1M': [1.45, 1.40, 1.35, 1.28, 1.22, 1.18, 1.168],
+      '1Y': [2.15, 2.50, 2.80, 2.20, 1.80, 1.40, 1.168],
+    },
+  },
+  {
+    id: 'BTC/USDT',
+    name: 'Bitcoin',
+    symbol: 'BTC',
+    pair: 'BTC / USDT',
+    price: 77300,
+    priceFormatted: '$77,300.00',
+    change24h: '+1.20%',
+    isPositive: true,
+    category: 'crypto',
+    tag: 'Главная крипта',
+    icon: '₿',
+    sub: 'Первая криптовалюта мира',
+    history: {
+      '1D': [76400, 76650, 76900, 77100, 77250, 77300],
+      '1W': [74500, 75100, 75800, 76200, 76900, 77300],
+      '1M': [68200, 70100, 72500, 74200, 76000, 77300],
+      '1Y': [42000, 52000, 64000, 68000, 72000, 77300],
+    },
+  },
+  {
+    id: 'ETH/USDT',
+    name: 'Ethereum',
+    symbol: 'ETH',
+    pair: 'ETH / USDT',
+    price: 2285,
+    priceFormatted: '$2,285.00',
+    change24h: '−0.35%',
+    isPositive: false,
+    category: 'crypto',
+    tag: 'Смарт-контракты',
+    icon: 'Ξ',
+    sub: 'Экосистема децентрализованных финансов',
+    history: {
+      '1D': [2295, 2290, 2282, 2288, 2285],
+      '1W': [2240, 2260, 2275, 2290, 2285],
+      '1M': [2100, 2180, 2220, 2270, 2285],
+      '1Y': [1800, 2400, 3100, 2700, 2400, 2285],
+    },
+  },
+  {
+    id: 'SOL/USDT',
+    name: 'Solana',
+    symbol: 'SOL',
+    pair: 'SOL / USDT',
+    price: 93.1,
+    priceFormatted: '$93.10',
+    change24h: '−1.40%',
+    isPositive: false,
+    category: 'crypto',
+    tag: 'Быстрый блокчейн',
+    icon: '◎',
+    sub: 'Высокоскоростная сеть Solana',
+    history: {
+      '1D': [94.5, 94.1, 93.8, 93.4, 93.1],
+      '1W': [89.0, 91.2, 92.5, 94.0, 93.1],
+      '1M': [82.0, 85.0, 89.0, 92.0, 93.1],
+      '1Y': [45.0, 65.0, 110.0, 130.0, 93.1],
+    },
+  },
+  {
+    id: 'TON/RUB',
+    name: 'Toncoin в рублях',
+    symbol: 'TON',
+    pair: 'TON / RUB',
+    price: 94.8,
+    priceFormatted: '94.80 ₽',
+    change24h: '−1.92%',
+    isPositive: false,
+    category: 'ton',
+    tag: 'Рынок РФ',
+    icon: '💎',
+    sub: 'Прямой курс обмена TON на рубли',
+    history: {
+      '1D': [96.7, 96.2, 95.8, 95.2, 94.8],
+      '1W': [97.5, 97.0, 96.0, 95.0, 94.8],
+      '1M': [112.0, 108.0, 104.0, 98.0, 94.8],
+      '1Y': [180.0, 210.0, 190.0, 140.0, 94.8],
+    },
+  },
+  {
+    id: 'NOT/USD',
+    name: 'Notcoin',
+    symbol: 'NOT',
+    pair: 'NOT / USD',
+    price: 0.000348,
+    priceFormatted: '$0.000348',
+    change24h: '−1.50%',
+    isPositive: false,
+    category: 'ton',
+    tag: 'TON Gaming',
+    icon: '⚡',
+    sub: 'Главный игровой токен Telegram',
+    history: {
+      '1D': [0.000355, 0.000352, 0.000349, 0.000348],
+      '1W': [0.000368, 0.00036, 0.000352, 0.000348],
+      '1M': [0.00048, 0.00042, 0.00038, 0.000348],
+      '1Y': [0.0012, 0.002, 0.001, 0.000348],
+    },
+  },
+  {
+    id: 'DOGS/USD',
+    name: 'DOGS Community',
+    symbol: 'DOGS',
+    pair: 'DOGS / USD',
+    price: 0.0000315,
+    priceFormatted: '$0.0000315',
+    change24h: '+0.80%',
+    isPositive: true,
+    category: 'ton',
+    tag: 'TON Social',
+    icon: '🐶',
+    sub: 'Мем-токен сообщества Telegram',
+    history: {
+      '1D': [0.0000312, 0.0000313, 0.0000314, 0.0000315],
+      '1W': [0.0000345, 0.000033, 0.000032, 0.0000315],
+      '1M': [0.000055, 0.000045, 0.000036, 0.0000315],
+      '1Y': [0.0001, 0.00008, 0.0000315],
+    },
+  },
+  {
+    id: 'TON/USDT',
+    name: 'TON Swap (DEX)',
+    symbol: 'TON',
+    pair: 'TON / USDT',
+    price: 1.17,
+    priceFormatted: '1.170 USDT',
+    change24h: '−2.41%',
+    isPositive: false,
+    category: 'ton',
+    tag: 'DEX STON.fi',
+    icon: '🔄',
+    sub: 'Пул ликвидности DeDust & STON.fi',
+    history: {
+      '1D': [1.198, 1.19, 1.182, 1.175, 1.17],
+      '1W': [1.22, 1.20, 1.185, 1.17],
+      '1M': [1.45, 1.38, 1.28, 1.21, 1.17],
+      '1Y': [2.2, 2.7, 2.1, 1.6, 1.17],
+    },
+  },
+  {
+    id: 'USDT/EUR',
+    name: 'Евро (Visa EU)',
+    symbol: 'EUR',
+    pair: 'USDT / EUR',
+    price: 0.892,
+    priceFormatted: '0.892 €',
+    change24h: '+0.11%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'Visa Platinum',
+    icon: '🇪🇺',
+    sub: 'Курс покупок по европейской карте',
+    history: {
+      '1D': [0.891, 0.8915, 0.892],
+      '1W': [0.888, 0.89, 0.891, 0.892],
+      '1M': [0.882, 0.886, 0.89, 0.892],
+      '1Y': [0.85, 0.88, 0.91, 0.892],
+    },
+  },
+  {
+    id: 'EUR/RUB',
+    name: 'Евро к рублю',
+    symbol: 'EUR',
+    pair: 'EUR / RUB',
+    price: 90.87,
+    priceFormatted: '90.87 ₽',
+    change24h: '+0.15%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'Валютный рынок',
+    icon: '💶',
+    sub: 'Кросс-курс евро к российскому рублю',
+    history: {
+      '1D': [90.7, 90.75, 90.82, 90.87],
+      '1W': [90.1, 90.3, 90.5, 90.87],
+      '1M': [88.5, 89.2, 90.0, 90.87],
+      '1Y': [82.0, 88.0, 96.0, 90.87],
+    },
+  },
+  {
+    id: 'USDT/AED',
+    name: 'Дирхам ОАЭ (Дубай)',
+    symbol: 'AED',
+    pair: 'USDT / AED',
+    price: 3.673,
+    priceFormatted: '3.673 د.إ',
+    change24h: '0.00%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'ОАЭ / Дубай',
+    icon: '🇦🇪',
+    sub: 'Фиксированный курс привязки к доллару',
+    history: {
+      '1D': [3.673, 3.673, 3.673, 3.673],
+      '1W': [3.673, 3.673, 3.673, 3.673],
+      '1M': [3.673, 3.673, 3.673, 3.673],
+      '1Y': [3.673, 3.673, 3.673, 3.673],
+    },
+  },
+  {
+    id: 'USDT/KZT',
+    name: 'Казахстанский тенге',
+    symbol: 'KZT',
+    pair: 'USDT / KZT',
+    price: 512.5,
+    priceFormatted: '512.50 ₸',
+    change24h: '+0.28%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'Казахстан',
+    icon: '🇰🇿',
+    sub: 'Курс переводов и карт банков Казахстана',
+    history: {
+      '1D': [511.0, 511.8, 512.2, 512.5],
+      '1W': [507.0, 509.0, 511.0, 512.5],
+      '1M': [498.0, 503.0, 508.0, 512.5],
+      '1Y': [460.0, 485.0, 515.0, 512.5],
+    },
+  },
+  {
+    id: 'USDT/TRY',
+    name: 'Турецкая лира',
+    symbol: 'TRY',
+    pair: 'USDT / TRY',
+    price: 36.85,
+    priceFormatted: '36.85 ₺',
+    change24h: '−0.35%',
+    isPositive: false,
+    category: 'fiat',
+    tag: 'Турция',
+    icon: '🇹🇷',
+    sub: 'Оплата отелей и подписок в Турции',
+    history: {
+      '1D': [36.98, 36.92, 36.88, 36.85],
+      '1W': [36.7, 36.75, 36.8, 36.85],
+      '1M': [35.9, 36.2, 36.5, 36.85],
+      '1Y': [29.5, 32.0, 35.0, 36.85],
+    },
+  },
+  {
+    id: 'USDT/CNY',
+    name: 'Китайский юань',
+    symbol: 'CNY',
+    pair: 'USDT / CNY',
+    price: 7.28,
+    priceFormatted: '7.28 ¥',
+    change24h: '+0.05%',
+    isPositive: true,
+    category: 'fiat',
+    tag: 'Китай',
+    icon: '🇨🇳',
+    sub: 'Курс расчетов с поставщиками и фабриками',
+    history: {
+      '1D': [7.276, 7.278, 7.28],
+      '1W': [7.26, 7.27, 7.275, 7.28],
+      '1M': [7.23, 7.25, 7.27, 7.28],
+      '1Y': [7.12, 7.2, 7.29, 7.28],
+    },
+  },
+];
+
 export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = false, onRefresh }) => {
-  const [selectedPair, setSelectedPair] = useState<'TON/USD' | 'USDT/RUB' | 'TON/RUB'>('USDT/RUB');
-  const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1D');
+  const items: CurrencyItem[] = ratesData?.items && ratesData.items.length > 0 ? ratesData.items : fallbackItems;
 
-  // Форматирование значений с fallback
-  const tonUsd = ratesData?.tonUsd ? `$${ratesData.tonUsd.toFixed(3)}` : '$1.170';
-  const tonRub = ratesData?.tonRub ? `${ratesData.tonRub.toFixed(2)} ₽` : '95.00 ₽';
-  const usdtRub = ratesData?.usdtRub ? `${ratesData.usdtRub.toFixed(2)} ₽` : '81.10 ₽';
-  const tonUsdt = ratesData?.tonUsdt ? `${ratesData.tonUsdt.toFixed(3)} USDT` : '1.171 USDT';
-  const usdtEur = ratesData?.usdtEur ? `${ratesData.usdtEur.toFixed(3)} €` : '0.892 €';
+  const [selectedId, setSelectedId] = useState<string>('USDT/RUB');
+  const [timeframe, setTimeframe] = useState<Timeframe>('1D');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
 
-  const diffTonUsd = ratesData?.diff24h?.tonUsd || '−2.45%';
-  const diffTonRub = ratesData?.diff24h?.tonRub || '−1.85%';
-  const diffUsdtRub = ratesData?.diff24h?.usdtRub || '+0.59%';
-  const diffUsdtEur = ratesData?.diff24h?.usdtEur || '+0.11%';
+  // Интерактивный hover/scrubbing на графике
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
 
-  const ratesList = [
-    {
-      id: 'USDT/RUB',
-      pair: 'USDT / RUB',
-      value: usdtRub,
-      change: diffUsdtRub,
-      sub: 'Курс конвертации СБП (НСПК)',
-      tag: 'СБП РФ',
-    },
-    {
-      id: 'TON/USD',
-      pair: 'TON / USD',
-      value: tonUsd,
-      change: diffTonUsd,
-      sub: 'The Open Network (CoinGecko / TonAPI)',
-      tag: 'TON Core',
-    },
-    {
-      id: 'TON/RUB',
-      pair: 'TON / RUB',
-      value: tonRub,
-      change: diffTonRub,
-      sub: 'Курс TON в российских рублях',
-      tag: 'Рынок РФ',
-    },
-    {
-      id: 'TON/USDT',
-      pair: 'TON / USDT',
-      value: tonUsdt,
-      change: diffTonUsd,
-      sub: 'DEX DeDust & STON.fi оракул',
-      tag: 'TON DEX',
-    },
-    {
-      id: 'USDT/EUR',
-      pair: 'USDT / EUR',
-      value: usdtEur,
-      change: diffUsdtEur,
-      sub: 'Курс европейской карты Visa',
-      tag: 'Visa EU',
-    },
-  ];
+  // Выбранный инструмент
+  const activeItem = useMemo(() => {
+    return items.find((x) => x.id === selectedId) || items[0];
+  }, [items, selectedId]);
 
-  const renderBadge = (change: string) => {
-    const isNegative = change.startsWith('-') || change.startsWith('−');
-    return (
-      <span
-        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-          isNegative
-            ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
-            : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-        }`}
-      >
-        {change}
-      </span>
-    );
+  // Данные для графика
+  const chartPoints = useMemo(() => {
+    const raw = activeItem.history?.[timeframe] || [activeItem.price * 0.98, activeItem.price];
+    return raw;
+  }, [activeItem, timeframe]);
+
+  // Мин / Макс для шкалы графика
+  const { minVal, maxVal, displayMin, displayMax } = useMemo(() => {
+    let min = Math.min(...chartPoints);
+    let max = Math.max(...chartPoints);
+    if (min === max) {
+      min *= 0.99;
+      max *= 1.01;
+    }
+    const padding = (max - min) * 0.12;
+    return {
+      minVal: min - padding,
+      maxVal: max + padding,
+      displayMin: min,
+      displayMax: max,
+    };
+  }, [chartPoints]);
+
+  // Координаты SVG точек
+  const svgWidth = 360;
+  const svgHeight = 140;
+  const paddingX = 14;
+  const paddingY = 12;
+
+  const pointsCoords = useMemo(() => {
+    const n = chartPoints.length;
+    const availableW = svgWidth - paddingX * 2;
+    const availableH = svgHeight - paddingY * 2;
+
+    return chartPoints.map((val, idx) => {
+      const x = paddingX + (idx / Math.max(1, n - 1)) * availableW;
+      const normalizedY = (val - minVal) / Math.max(0.0001, maxVal - minVal);
+      const y = svgHeight - paddingY - normalizedY * availableH;
+      return { x, y, val };
+    });
+  }, [chartPoints, minVal, maxVal]);
+
+  // Построение плавной SVG кривой Безье
+  const { pathD, fillD } = useMemo(() => {
+    if (pointsCoords.length < 2) return { pathD: '', fillD: '' };
+
+    let d = `M ${pointsCoords[0].x.toFixed(1)},${pointsCoords[0].y.toFixed(1)}`;
+    for (let i = 0; i < pointsCoords.length - 1; i++) {
+      const p0 = pointsCoords[i];
+      const p1 = pointsCoords[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      d += ` C ${cx.toFixed(1)},${p0.y.toFixed(1)} ${cx.toFixed(1)},${p1.y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+    }
+
+    const last = pointsCoords[pointsCoords.length - 1];
+    const first = pointsCoords[0];
+    const fill = `${d} L ${last.x.toFixed(1)},${svgHeight} L ${first.x.toFixed(1)},${svgHeight} Z`;
+
+    return { pathD: d, fillD: fill };
+  }, [pointsCoords]);
+
+  // Текущая отображаемая цена (динамически меняется при скраббинге пальцем)
+  const activeHoverPrice = useMemo(() => {
+    if (hoveredIndex !== null && pointsCoords[hoveredIndex]) {
+      const val = pointsCoords[hoveredIndex].val;
+      if (val >= 1000) {
+        return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+      if (val < 0.01) {
+        return `$${val.toFixed(6)}`;
+      }
+      return `${val.toFixed(2)}`;
+    }
+    return activeItem.priceFormatted;
+  }, [hoveredIndex, pointsCoords, activeItem]);
+
+  // Обработка скраббинга мыши / тача
+  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!chartSvgRef.current) return;
+    const rect = chartSvgRef.current.getBoundingClientRect();
+    const clientX = e.clientX - rect.left;
+    const relativeX = (clientX / rect.width) * svgWidth;
+
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    pointsCoords.forEach((pt, idx) => {
+      const diff = Math.abs(pt.x - relativeX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = idx;
+      }
+    });
+
+    setHoveredIndex(closestIdx);
   };
+
+  const handlePointerLeave = () => {
+    setHoveredIndex(null);
+  };
+
+  // Фильтрация расширенного каталога
+  const filteredItems = useMemo(() => {
+    let result = items;
+    if (categoryFilter !== 'all') {
+      result = result.filter((x) => x.category === categoryFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (x) =>
+          x.name.toLowerCase().includes(q) ||
+          x.symbol.toLowerCase().includes(q) ||
+          x.pair.toLowerCase().includes(q) ||
+          x.tag.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [items, categoryFilter, searchQuery]);
+
+  // Цветовая тема активной пары
+  const isPositiveTrend = activeItem.isPositive;
+  const themeStroke = isPositiveTrend ? '#06b6d4' : '#f43f5e';
+  const themeFillId = isPositiveTrend ? 'cyanGrad' : 'roseGrad';
 
   return (
     <motion.div
@@ -89,20 +471,20 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.25 }}
-      className="space-y-4 pb-24 pt-2"
+      className="space-y-4 pb-28 pt-2"
     >
-      {/* Header with TonAPI Live badge and Refresh Button */}
-      <div className="px-4 flex items-start justify-between">
+      {/* 1. Header (Без неуклюжего текста «В реальном времени») */}
+      <div className="px-4 flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-xl font-bold text-white">Курсы валют</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white tracking-tight">Курсы валют</h1>
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[10px] font-bold text-cyan-400">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              TON Live
+              TON • Live
             </span>
           </div>
-          <p className="text-xs text-slate-400">
-            Прямые котировки из блокчейна TON (TonAPI & DEX)
+          <p className="text-xs text-slate-400 mt-0.5">
+            Биржевые котировки блокчейна TON, крипты и СБП
           </p>
         </div>
 
@@ -110,7 +492,7 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white active:scale-95 transition-all"
+            className="w-9 h-9 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 transition-all shadow-sm"
             title="Обновить котировки"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-cyan-400' : ''}`} />
@@ -118,91 +500,57 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
         )}
       </div>
 
-      {/* Live TON Status Banner */}
+      {/* 2. Доработанный интерактивный график */}
       <div className="px-4">
-        <div className="p-3 rounded-2xl bg-gradient-to-r from-blue-950/40 via-cyan-950/30 to-slate-900/60 border border-cyan-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-black text-xs">
-              💎
-            </div>
+        <div className="glass-panel rounded-3xl p-4.5 bg-slate-900/95 border border-slate-800 shadow-xl relative overflow-hidden">
+          {/* Верхняя плашка графика с ценой и статами */}
+          <div className="flex items-start justify-between mb-2">
             <div>
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>Блокчейн The Open Network</span>
-                <Zap className="w-3 h-3 text-cyan-400 fill-cyan-400" />
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{activeItem.icon}</span>
+                <span className="text-xs font-bold text-slate-300">{activeItem.name}</span>
+                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                  {activeItem.pair}
+                </span>
               </div>
-              <div className="text-[10px] text-slate-400">
-                1 TON ≈ {tonUsd} • Оракул STON.fi & DeDust
-              </div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 font-mono">Обновлено</div>
-            <div className="text-[11px] font-bold text-emerald-400 font-mono">В реальном времени</div>
-          </div>
-        </div>
-      </div>
 
-      {/* Currency Rate Cards */}
-      <div className="px-4 space-y-2.5">
-        {ratesList.map((r) => {
-          const isSelected = selectedPair === r.id;
-          return (
-            <div
-              key={r.pair}
-              onClick={() => {
-                if (r.id === 'TON/USD' || r.id === 'USDT/RUB' || r.id === 'TON/RUB') {
-                  setSelectedPair(r.id);
-                }
-              }}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                isSelected
-                  ? 'bg-slate-900/95 border-cyan-500/60 shadow-lg shadow-cyan-950/20'
-                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-2">
-                    <span>{r.pair}</span>
-                    {renderBadge(r.change)}
-                    <span className="text-[9px] uppercase tracking-wider text-slate-500 bg-slate-800 px-1.5 py-0.2 rounded font-mono">
-                      {r.tag}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-1">{r.sub}</div>
+              {/* Большая динамическая цена */}
+              <div className="flex items-baseline gap-2.5 mt-1">
+                <div className="text-2xl font-black font-mono text-white tracking-tight transition-all">
+                  {activeHoverPrice}
                 </div>
-
-                <div className="text-right">
-                  <div className="text-sm font-mono font-black text-white">{r.value}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">Спред: 0.8–1.5%</div>
+                <div
+                  className={`flex items-center text-xs font-mono font-bold px-2 py-0.5 rounded-lg ${
+                    isPositiveTrend
+                      ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
+                      : 'text-rose-400 bg-rose-500/15 border border-rose-500/30'
+                  }`}
+                >
+                  {isPositiveTrend ? (
+                    <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />
+                  )}
+                  <span>{activeItem.change24h}</span>
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Live Chart Container */}
-      <div className="px-4">
-        <div className="glass-panel rounded-3xl p-5 bg-slate-900/90 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-bold text-white">График {selectedPair}</span>
-            </div>
-
-            {/* Timeframe Selector */}
-            <div className="flex gap-1 bg-slate-800/80 p-1 rounded-xl text-[10px] font-bold">
+            {/* Селектор таймфреймов */}
+            <div className="flex gap-1 bg-slate-800/90 p-1 rounded-xl text-[10px] font-bold border border-slate-700/60 shadow-inner">
               {(['1D', '1W', '1M', '1Y'] as const).map((t) => {
                 const isActive = timeframe === t;
                 return (
                   <button
                     key={t}
-                    onClick={() => setTimeframe(t)}
+                    onClick={() => {
+                      setTimeframe(t);
+                      setHoveredIndex(null);
+                    }}
                     className={`px-2 py-0.5 rounded-lg active:scale-95 transition-all duration-150 ${
                       isActive
-                        ? 'bg-cyan-400 text-slate-950 font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                        ? 'bg-cyan-400 text-slate-950 font-black shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
                     }`}
                   >
                     <span>{t}</span>
@@ -212,51 +560,293 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
             </div>
           </div>
 
-          {/* Animated SVG Sparkline chart simulation with dynamic path based on selected pair */}
-          <div className="h-36 w-full flex items-end overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.svg
-                key={`${selectedPair}-${timeframe}`}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.2 }}
-                viewBox="0 0 300 100"
-                className="w-full h-full overflow-visible"
-              >
-                <defs>
-                  <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d={
-                    selectedPair === 'TON/USD'
-                      ? 'M 0,50 Q 50,20 100,45 T 200,25 T 300,10 L 300,100 L 0,100 Z'
-                      : selectedPair === 'TON/RUB'
-                      ? 'M 0,60 Q 60,30 120,50 T 220,20 T 300,15 L 300,100 L 0,100 Z'
-                      : 'M 0,70 Q 50,40 100,55 T 200,30 T 300,15 L 300,100 L 0,100 Z'
-                  }
-                  fill="url(#chartGradient)"
-                />
-                <path
-                  d={
-                    selectedPair === 'TON/USD'
-                      ? 'M 0,50 Q 50,20 100,45 T 200,25 T 300,10'
-                      : selectedPair === 'TON/RUB'
-                      ? 'M 0,60 Q 60,30 120,50 T 220,20 T 300,15'
-                      : 'M 0,70 Q 50,40 100,55 T 200,30 T 300,15'
-                  }
-                  fill="none"
-                  stroke="#06b6d4"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <circle cx="300" cy="15" r="4" fill="#06b6d4" />
-              </motion.svg>
-            </AnimatePresence>
+          {/* Статистика Макс / Мин */}
+          <div className="flex items-center gap-4 text-[11px] font-mono text-slate-400 pb-2 border-b border-slate-800/60 mb-2">
+            <div>
+              <span className="text-slate-500">Макс: </span>
+              <span className="text-slate-300 font-semibold">
+                {displayMax >= 100 ? displayMax.toFixed(2) : displayMax.toFixed(4)}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500">Мин: </span>
+              <span className="text-slate-300 font-semibold">
+                {displayMin >= 100 ? displayMin.toFixed(2) : displayMin.toFixed(4)}
+              </span>
+            </div>
+            <div className="ml-auto text-[10px] text-cyan-400 font-sans flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              <span>Дотроньтесь для просмотра</span>
+            </div>
           </div>
+
+          {/* Canvas SVG графика */}
+          <div className="relative h-36 w-full select-none touch-none">
+            <svg
+              ref={chartSvgRef}
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              className="w-full h-full overflow-visible"
+              onPointerMove={handlePointerMove}
+              onPointerLeave={handlePointerLeave}
+              onPointerDown={handlePointerMove}
+            >
+              <defs>
+                <linearGradient id="cyanGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
+                </linearGradient>
+                <linearGradient id="roseGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* 3 Горизонтальные сетки */}
+              <line
+                x1={paddingX}
+                y1={paddingY}
+                x2={svgWidth - paddingX}
+                y2={paddingY}
+                stroke="#334155"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                opacity="0.4"
+              />
+              <line
+                x1={paddingX}
+                y1={svgHeight / 2}
+                x2={svgWidth - paddingX}
+                y2={svgHeight / 2}
+                stroke="#334155"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                opacity="0.4"
+              />
+              <line
+                x1={paddingX}
+                y1={svgHeight - paddingY}
+                x2={svgWidth - paddingX}
+                y2={svgHeight - paddingY}
+                stroke="#334155"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                opacity="0.4"
+              />
+
+              {/* Заливка области под кривой */}
+              {fillD && <path d={fillD} fill={`url(#${themeFillId})`} />}
+
+              {/* Основная плавная линия графика */}
+              {pathD && (
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={themeStroke}
+                  strokeWidth="2.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+
+              {/* Маркер последней точки (пульсирует) */}
+              {pointsCoords.length > 0 && hoveredIndex === null && (
+                <g>
+                  <circle
+                    cx={pointsCoords[pointsCoords.length - 1].x}
+                    cy={pointsCoords[pointsCoords.length - 1].y}
+                    r="4"
+                    fill={themeStroke}
+                  />
+                  <circle
+                    cx={pointsCoords[pointsCoords.length - 1].x}
+                    cy={pointsCoords[pointsCoords.length - 1].y}
+                    r="8"
+                    fill={themeStroke}
+                    opacity="0.35"
+                    className="animate-ping"
+                  />
+                </g>
+              )}
+
+              {/* Интерактивный курсор скраббинга при наведении / таче */}
+              {hoveredIndex !== null && pointsCoords[hoveredIndex] && (
+                <g>
+                  {/* Вертикальная направляющая */}
+                  <line
+                    x1={pointsCoords[hoveredIndex].x}
+                    y1={paddingY}
+                    x2={pointsCoords[hoveredIndex].x}
+                    y2={svgHeight - paddingY}
+                    stroke="#94a3b8"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                    opacity="0.75"
+                  />
+                  {/* Точка на графике */}
+                  <circle
+                    cx={pointsCoords[hoveredIndex].x}
+                    cy={pointsCoords[hoveredIndex].y}
+                    r="5"
+                    fill="#ffffff"
+                    stroke={themeStroke}
+                    strokeWidth="3"
+                  />
+                </g>
+              )}
+            </svg>
+          </div>
+
+          {/* Временная шкала внизу графика */}
+          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 px-1">
+            {timeframe === '1D' && (
+              <>
+                <span>00:00</span>
+                <span>06:00</span>
+                <span>12:00</span>
+                <span>18:00</span>
+                <span className="text-cyan-400 font-bold">Сейчас</span>
+              </>
+            )}
+            {timeframe === '1W' && (
+              <>
+                <span>Пн</span>
+                <span>Ср</span>
+                <span>Пт</span>
+                <span>Сб</span>
+                <span className="text-cyan-400 font-bold">Вс</span>
+              </>
+            )}
+            {timeframe === '1M' && (
+              <>
+                <span>1 день</span>
+                <span>10 дней</span>
+                <span>20 дней</span>
+                <span className="text-cyan-400 font-bold">Сегодня</span>
+              </>
+            )}
+            {timeframe === '1Y' && (
+              <>
+                <span>12 мес назад</span>
+                <span>6 мес назад</span>
+                <span className="text-cyan-400 font-bold">Сейчас</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Расширенный каталог валют */}
+      <div className="px-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-bold text-white flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-cyan-400" />
+            <span>Каталог популярных валют</span>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400">{filteredItems.length} пар</span>
+        </div>
+
+        {/* Поисковая строка */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск: BTC, TON, СБП, EUR, USDT..."
+            className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Табы фильтров категорий */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs font-semibold">
+          {[
+            { id: 'all', label: '🔥 Все котировки' },
+            { id: 'ton', label: '💎 TON экосистема' },
+            { id: 'crypto', label: '🪙 Топ Крипта' },
+            { id: 'fiat', label: '💱 Фиат и СБП' },
+          ].map((cat) => {
+            const isActive = categoryFilter === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setCategoryFilter(cat.id as CategoryFilter)}
+                className={`px-3 py-1.5 rounded-xl whitespace-nowrap active:scale-95 transition-all ${
+                  isActive
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Список карточек валют */}
+        <div className="space-y-2">
+          {filteredItems.map((item) => {
+            const isSelected = item.id === activeItem.id;
+            const isPositive = item.isPositive;
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => {
+                  setSelectedId(item.id);
+                  setHoveredIndex(null);
+                }}
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                  isSelected
+                    ? 'bg-slate-900/95 border-cyan-500/60 shadow-lg shadow-cyan-950/20 ring-1 ring-cyan-500/40'
+                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 active:scale-98'
+                }`}
+              >
+                {/* Левая часть: Иконка и название */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-lg shadow-sm flex-shrink-0">
+                    {item.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white truncate">{item.name}</span>
+                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 flex-shrink-0">
+                        {item.tag}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate mt-0.5">{item.sub}</div>
+                  </div>
+                </div>
+
+                {/* Правая часть: Цена и суточный % */}
+                <div className="text-right flex-shrink-0 ml-3">
+                  <div className="text-sm font-black font-mono text-white">{item.priceFormatted}</div>
+                  <div
+                    className={`inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                      isPositive
+                        ? 'text-emerald-400 bg-emerald-500/10'
+                        : 'text-rose-400 bg-rose-500/10'
+                    }`}
+                  >
+                    {item.change24h}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredItems.length === 0 && (
+            <div className="text-center py-8 text-slate-500 text-xs">
+              Ничего не найдено по запросу «{searchQuery}»
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
