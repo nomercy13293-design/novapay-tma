@@ -21,14 +21,16 @@ import { TransferModal } from './components/TransferModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { KycModal } from './components/KycModal';
 import { TelegramNotification } from './components/TelegramNotification';
-import { ApiClient } from './api/client';
+import { ApiClient, type LiveRates } from './api/client';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [user, setUser] = useState<UserProfile>(() => getInitialTelegramUser());
   const [card, setCard] = useState<CardInfo>(() => getInitialCard(getInitialTelegramUser()));
   const [balanceUsdt, setBalanceUsdt] = useState<number>(1420.50);
-  const [rate] = useState<number>(93.00);
+  const [rate, setRate] = useState<number>(93.00);
+  const [liveRates, setLiveRates] = useState<LiveRates | null>(null);
+  const [isRatesLoading, setIsRatesLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
 
   // Modals state
@@ -41,8 +43,27 @@ export default function App() {
   // Telegram bot notification toast
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Telegram Web App auto-expand & auth
+  // Получение актуальных курсов валют из блокчейна TON
+  const refreshRates = async () => {
+    setIsRatesLoading(true);
+    try {
+      const data = await ApiClient.getRates();
+      if (data && data.ok) {
+        setLiveRates(data);
+        if (data.usdtRub) {
+          setRate(data.usdtRub);
+        }
+      }
+    } finally {
+      setIsRatesLoading(false);
+    }
+  };
+
+  // Telegram Web App auto-expand & auth & live rates
   useEffect(() => {
+    refreshRates();
+    const ratesTimer = setInterval(refreshRates, 45000);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
@@ -108,6 +129,10 @@ export default function App() {
         });
       }
     }
+
+    return () => {
+      clearInterval(ratesTimer);
+    };
   }, []);
 
   const showNotification = (msg: string) => {
@@ -294,7 +319,14 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'rates' && <RatesView key="rates" />}
+          {activeTab === 'rates' && (
+            <RatesView
+              key="rates"
+              ratesData={liveRates}
+              isLoading={isRatesLoading}
+              onRefresh={refreshRates}
+            />
+          )}
 
           {activeTab === 'profile' && (
             <ProfileView

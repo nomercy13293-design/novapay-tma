@@ -5,6 +5,26 @@ const API_URL =
     ? 'http://localhost:3001'
     : '';
 
+export interface LiveRates {
+  ok: boolean;
+  source: 'tonapi' | 'cache' | 'fallback';
+  timestamp: string;
+  usdtRub: number;
+  usdtUsd: number;
+  usdtEur: number;
+  tonUsd: number;
+  tonRub: number;
+  tonEur: number;
+  tonUsdt: number;
+  diff24h: {
+    tonUsd: string;
+    tonRub: string;
+    usdtRub: string;
+    usdtEur: string;
+    usdtUsd: string;
+  };
+}
+
 export interface AuthResponse {
   ok: boolean;
   user?: {
@@ -102,5 +122,51 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify({ userId }),
     });
+  }
+
+  /**
+   * Получение актуальных курсов валют из блокчейна TON (TonAPI)
+   */
+  public static async getRates(): Promise<LiveRates | null> {
+    const data = await this.request<LiveRates>('/api/rates');
+    if (data && data.ok) return data;
+
+    // Прямой резервный запрос к TonAPI
+    try {
+      const res = await fetch('https://tonapi.io/v2/rates?tokens=ton,usdt&currencies=usd,rub,eur');
+      if (res.ok) {
+        const json = await res.json();
+        const tonRates = json?.rates?.TON;
+        const usdtRates = json?.rates?.USDT;
+        const tonUsd = parseFloat(tonRates?.prices?.USD || '1.17');
+        const tonRub = parseFloat(tonRates?.prices?.RUB || '95.0');
+        const tonEur = parseFloat(tonRates?.prices?.EUR || '1.05');
+        const usdtUsd = parseFloat(usdtRates?.prices?.USD || '1.0');
+        const usdtRub = parseFloat(usdtRates?.prices?.RUB || '81.1');
+        const usdtEur = parseFloat(usdtRates?.prices?.EUR || '0.89');
+
+        return {
+          ok: true,
+          source: 'tonapi',
+          timestamp: new Date().toISOString(),
+          usdtRub: parseFloat(usdtRub.toFixed(2)),
+          usdtUsd: parseFloat(usdtUsd.toFixed(4)),
+          usdtEur: parseFloat(usdtEur.toFixed(4)),
+          tonUsd: parseFloat(tonUsd.toFixed(4)),
+          tonRub: parseFloat(tonRub.toFixed(2)),
+          tonEur: parseFloat(tonEur.toFixed(4)),
+          tonUsdt: parseFloat((tonUsd / (usdtUsd || 1)).toFixed(4)),
+          diff24h: {
+            tonUsd: tonRates?.diff_24h?.USD || '-0.00%',
+            tonRub: tonRates?.diff_24h?.RUB || '-0.00%',
+            usdtRub: usdtRates?.diff_24h?.RUB || '+0.00%',
+            usdtEur: usdtRates?.diff_24h?.EUR || '+0.00%',
+            usdtUsd: usdtRates?.diff_24h?.USD || '+0.00%',
+          },
+        };
+      }
+    } catch {}
+
+    return null;
   }
 }
