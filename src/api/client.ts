@@ -136,6 +136,20 @@ export class ApiClient {
   }
 
   /**
+   * Пополнение счета (USDT)
+   */
+  public static async deposit(payload: {
+    userId: number;
+    amountUsdt: number;
+    network?: string;
+  }) {
+    return this.request<{ ok: boolean; tx?: any; newBalance?: number }>('/api/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Перевод средств (Telegram / Крипта / СБП)
    */
   public static async transfer(payload: {

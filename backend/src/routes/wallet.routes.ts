@@ -17,12 +17,28 @@ export const walletRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Депозит
   fastify.post('/deposit', async (request, reply) => {
-    const { userId, amountUsdt } = request.body as { userId: number; amountUsdt: number };
+    const { userId, amountUsdt, network } = request.body as {
+      userId: number;
+      amountUsdt: number;
+      network?: string;
+    };
     if (!userId || !amountUsdt) {
       return reply.status(400).send({ ok: false, error: 'Неверные параметры депозита' });
     }
 
     const result = await WalletService.processDeposit(userId, amountUsdt);
+
+    // Отправляем push-сообщение в Telegram бот
+    if (result.tx) {
+      await TelegramService.sendDepositNotice({
+        chatId: userId,
+        amountUsdt,
+        newBalance: result.newBalance,
+        network: network || 'TON (The Open Network)',
+        txId: result.tx.id,
+      });
+    }
+
     return { ok: true, ...result };
   });
 

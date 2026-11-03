@@ -17,6 +17,14 @@ export interface TransferNoticePayload {
   txId: string;
 }
 
+export interface DepositNoticePayload {
+  chatId: number | string;
+  amountUsdt: number;
+  newBalance: number;
+  network?: string;
+  txId: string;
+}
+
 export interface SecurityCodePayload {
   chatId: number | string;
   code: string;
@@ -451,18 +459,66 @@ export class TelegramService {
     const text = [
       `📤 <b>Перевод средств выполнен</b>`,
       ``,
-      `₮ <b>Сумма:</b> ${payload.amountUsdt.toFixed(2)} USDT`,
+      `💰 <b>Сумма:</b> ${payload.amountUsdt.toFixed(2)} USDT`,
       `👤 <b>Получатель:</b> <code>${payload.recipient}</code>`,
       `⚙️ <b>Метод:</b> ${payload.method}`,
       `🧾 <b>ID:</b> <code>${payload.txId}</code>`,
       ``,
-      `✅ <i>Средства успешно отправлены.</i>`,
+      `✅ <i>Средства успешно отправлены с вашего счета NovaPay.</i>`,
     ].join('\n');
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🚀 Открыть NovaPay',
+            web_app: { url: config.appUrl },
+          },
+        ],
+      ],
+    };
 
     const res = await this.makeRequest('sendMessage', {
       chat_id: payload.chatId,
       text,
       parse_mode: 'HTML',
+      reply_markup: replyMarkup,
+    });
+
+    return res.ok;
+  }
+
+  /**
+   * Уведомление о пополнении баланса
+   */
+  public static async sendDepositNotice(payload: DepositNoticePayload): Promise<boolean> {
+    const text = [
+      `💎 <b>Пополнение счета подтверждено!</b>`,
+      ``,
+      `💰 <b>Сумма:</b> +${payload.amountUsdt.toFixed(2)} USDT`,
+      `🌐 <b>Сеть:</b> ${payload.network || 'TON (The Open Network)'}`,
+      `💳 <b>Новый баланс:</b> $${payload.newBalance.toFixed(2)} USDT`,
+      `🧾 <b>ID транзакции:</b> <code>${payload.txId}</code>`,
+      ``,
+      `<i>Средства успешно зачислены и готовы для покупок Visa и СБП.</i>`,
+    ].join('\n');
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: '🚀 Открыть NovaPay',
+            web_app: { url: config.appUrl },
+          },
+        ],
+      ],
+    };
+
+    const res = await this.makeRequest('sendMessage', {
+      chat_id: payload.chatId,
+      text,
+      parse_mode: 'HTML',
+      reply_markup: replyMarkup,
     });
 
     return res.ok;

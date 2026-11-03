@@ -247,6 +247,9 @@ export class WalletService {
     const txId = `tx-${Date.now()}`;
     const timestampStr = 'Только что';
 
+    // Гарантируем, что кошелек и пользователь созданы в БД
+    await this.getOrCreateWallet(userId);
+
     if (pool) {
       await initDb();
       try {
@@ -325,6 +328,9 @@ export class WalletService {
         ? `Перевод на кошелек (${recipient.slice(0, 6)}...)`
         : `Вывод на карту СБП (${recipient})`;
 
+    // Гарантируем, что кошелек и пользователь созданы в БД с начальным балансом
+    const currentWallet = await this.getOrCreateWallet(userId);
+
     if (pool) {
       await initDb();
       try {
@@ -337,10 +343,18 @@ export class WalletService {
         );
 
         if (updateRes.rowCount === 0) {
-          return { success: false, error: 'Недостаточно средств для перевода' };
+          // Если не хватило баланса в строке БД, синхронизируем с currentWallet
+          if (currentWallet.balanceUsdt >= amountUsdt) {
+            await pool.query(
+              `UPDATE wallets SET balance_usdt = $1 WHERE user_id = $2`,
+              [currentWallet.balanceUsdt - amountUsdt, userId]
+            );
+          } else {
+            return { success: false, error: 'Недостаточно средств для перевода' };
+          }
         }
 
-        const newBalance = parseFloat(updateRes.rows[0].balance_usdt);
+        const newBalance = updateRes.rows[0] ? parseFloat(updateRes.rows[0].balance_usdt) : currentWallet.balanceUsdt - amountUsdt;
 
         await pool.query(
           `INSERT INTO transactions (id, user_id, type, title, category, amount_usdt, amount_rub, status, icon, timestamp_str)

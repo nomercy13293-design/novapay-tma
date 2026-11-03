@@ -253,6 +253,22 @@ export default function App() {
     const newBalance = parseFloat((balanceUsdt + amount).toFixed(2));
     setBalanceUsdt(newBalance);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tg = (window as any).Telegram?.WebApp;
+    const tgUser = tg?.initDataUnsafe?.user;
+    const userId = tgUser?.id || 1001;
+
+    try {
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } catch {}
+
+    // Вызываем бэкенд для пополнения и отправки push в Telegram-бот
+    ApiClient.deposit({
+      userId,
+      amountUsdt: amount,
+      network: 'TON (The Open Network)',
+    });
+
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
       type: 'deposit',
@@ -294,8 +310,13 @@ export default function App() {
     setBalanceUsdt(newBalance);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const tg = (window as any).Telegram?.WebApp;
+    const tgUser = tg?.initDataUnsafe?.user;
     const userId = tgUser?.id || 1001;
+
+    try {
+      tg?.HapticFeedback?.notificationOccurred('success');
+    } catch {}
 
     // Вызываем бэкенд для отправки уведомления в Telegram
     ApiClient.transfer({

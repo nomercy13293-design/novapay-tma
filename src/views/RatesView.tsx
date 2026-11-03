@@ -634,13 +634,13 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
       <div className="px-4">
         <div className="glass-panel rounded-3xl p-4.5 bg-slate-900/95 border border-slate-800 shadow-xl relative overflow-hidden">
           {/* Верхняя плашка графика с ценой и статами */}
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{activeItem.icon}</span>
-                <span className="text-xs font-bold text-slate-300">{activeItem.name}</span>
-                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                  {activeItem.pair}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-base flex-shrink-0">{activeItem.icon}</span>
+                <span className="text-xs font-bold text-slate-200 truncate">{activeItem.name}</span>
+                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 whitespace-nowrap flex-shrink-0">
+                  {activeItem.pair.replace(' / ', '/')}
                 </span>
               </div>
 
@@ -650,12 +650,12 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
                   {activeHoverPrice}
                 </div>
                 {hoveredTimeStr ? (
-                  <div className="flex items-center text-[10px] font-mono font-semibold px-2 py-0.5 rounded-lg text-cyan-300 bg-cyan-950/60 border border-cyan-500/30">
+                  <div className="flex items-center text-[10px] font-mono font-semibold px-2 py-0.5 rounded-lg text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 whitespace-nowrap">
                     {hoveredTimeStr}
                   </div>
                 ) : (
                   <div
-                    className={`flex items-center text-xs font-mono font-bold px-2 py-0.5 rounded-lg ${
+                    className={`flex items-center text-xs font-mono font-bold px-2 py-0.5 rounded-lg whitespace-nowrap ${
                       isPositiveTrend
                         ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
                         : 'text-rose-400 bg-rose-500/15 border border-rose-500/30'
@@ -673,7 +673,7 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
             </div>
 
             {/* Селектор таймфреймов с плавной анимацией скольжения */}
-            <div className="flex gap-1 bg-slate-800/90 p-1 rounded-xl text-[10px] font-bold border border-slate-700/60 shadow-inner">
+            <div className="flex gap-0.5 bg-slate-800/90 p-1 rounded-xl text-[10px] font-bold border border-slate-700/60 shadow-inner flex-shrink-0">
               {(['1D', '1W', '1M', '1Y'] as const).map((t) => {
                 const isActive = timeframe === t;
                 return (
@@ -683,7 +683,7 @@ export const RatesView: React.FC<RatesViewProps> = ({ ratesData, isLoading = fal
                       setTimeframe(t);
                       setHoveredIndex(null);
                     }}
-                    className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                    className={`relative px-2 py-0.5 rounded-lg text-xs font-bold transition-colors ${
                       isActive ? 'text-slate-950 font-black' : 'text-slate-400 hover:text-white'
                     }`}
                   >
