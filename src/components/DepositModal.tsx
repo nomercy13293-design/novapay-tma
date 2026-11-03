@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Copy, Check, QrCode, Sparkles } from 'lucide-react';
+import { X, Copy, Check, QrCode, Sparkles, Wallet } from 'lucide-react';
+import { TonConnectButton, useTonWallet } from '@tonconnect/ui-react';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -15,8 +16,11 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 }) => {
   const [network, setNetwork] = useState<'TON' | 'TRC20'>('TON');
   const [copied, setCopied] = useState(false);
+  const wallet = useTonWallet();
 
-  const tonAddress = 'EQBvW8Z5huBkMJYdnfGpdBhVNovTRNT2NLL9921_TON_PAY';
+  const tonAddress = wallet
+    ? wallet.account.address
+    : 'EQBvW8Z5huBkMJYdnfGpdBhVNovTRNT2NLL9921_TON_PAY';
   const trcAddress = 'TQn9Y2khEsLJW1ChVWFMSMeRDow5K7821_TRON_DEPOSIT';
   const activeAddress = network === 'TON' ? tonAddress : trcAddress;
 
@@ -96,6 +100,19 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 <span>Tron (TRC-20)</span>
               </button>
             </div>
+
+            {/* TON Connect Wallet Button (when TON network selected) */}
+            {network === 'TON' && (
+              <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 mb-4">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-300 mb-2">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>{wallet ? 'Кошелек подключен:' : 'Подключить Tonkeeper / @wallet:'}</span>
+                </div>
+                <div className="flex justify-center">
+                  <TonConnectButton />
+                </div>
+              </div>
+            )}
 
             {/* QR Code presentation */}
             <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 border border-white/10 mb-4">

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.4.0",
+    "@tonconnect/ui-react": "^5.0.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "dotenv": "^18.0.9",
