@@ -93,6 +93,7 @@
 * [x] **Telegram Webhook** (`/api/telegram/webhook`) для обработки сообщений, команд `/start`, `/card`, `/sbp`, `/help` и кнопок меню.
 * [x] Нативная кнопка меню Telegram (`setChatMenuButton`) с прямым открытием Mini App.
 * [x] Интеграция с официальным **TON Connect UI**.
+* [x] Интеграция с оракулом котировок **TON (TonAPI & DEX STON.fi/DeDust)**: живой курс USDT/RUB, TON/USD, TON/RUB, TON/USDT с автообновлением.
 
 ### 🔹 Шаг 3: Механизм предзапуска (Waitlist / Рефералка)
 * [ ] Страница раннего доступа для сбора виральной аудитории (пригласи 3 друзей → получи карту Visa бесплатно).
