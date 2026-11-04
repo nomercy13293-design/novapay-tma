@@ -136,6 +136,79 @@ export class ApiClient {
   }
 
   /**
+   * Получение реквизитов депозита и персонального Memo
+   */
+  public static async getDepositInfo(userId: number) {
+    return this.request<{
+      ok: boolean;
+      masterTonAddress?: string;
+      masterTronAddress?: string;
+      memo?: string;
+      tonDeepLink?: string;
+      tonkeeperUrl?: string;
+      error?: string;
+    }>(`/api/wallet/deposit-info/${userId}`);
+  }
+
+  /**
+   * Проверка и мгновенное зачисление депозита по Memo
+   */
+  public static async verifyDepositByMemo(userId: number, memo?: string) {
+    return this.request<{
+      ok: boolean;
+      amountUsdt?: number;
+      newBalance?: number;
+      tx?: any;
+      error?: string;
+    }>('/api/wallet/deposit/verify', {
+      method: 'POST',
+      body: JSON.stringify({ userId, memo }),
+    });
+  }
+
+  /**
+   * Инициализация перевода с генерацией 2FA кода безопасности
+   */
+  public static async initiateTransfer(payload: {
+    userId: number;
+    recipient: string;
+    method: string;
+    amountUsdt: number;
+    rate?: number;
+  }) {
+    return this.request<{
+      ok: boolean;
+      requires2fa?: boolean;
+      challengeId?: string;
+      expiresInSeconds?: number;
+      simulatedCode?: string;
+      error?: string;
+    }>('/api/wallet/transfer/initiate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Подтверждение перевода 6-значным кодом 2FA из Telegram-бота
+   */
+  public static async confirmTransfer(payload: {
+    userId: number;
+    challengeId: string;
+    code: string;
+  }) {
+    return this.request<{
+      ok: boolean;
+      tx?: any;
+      newBalance?: number;
+      error?: string;
+    }>('/api/wallet/transfer/confirm', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Пополнение счета (USDT)
    */
   public static async deposit(payload: {

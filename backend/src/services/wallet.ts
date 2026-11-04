@@ -17,6 +17,7 @@ export interface Transaction {
 export interface UserWallet {
   userId: number;
   balanceUsdt: number;
+  memo: string;
   card: {
     pan: string;
     exp: string;
@@ -46,9 +47,10 @@ export class WalletService {
             'INSERT INTO users (id, username, first_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
             [userId, initialUsername || `user_${userId}`, initialUsername || 'User']
           );
+          const defaultMemo = `NP-${userId}`;
           await pool.query(
-            'INSERT INTO wallets (user_id, balance_usdt) VALUES ($1, 1420.50) ON CONFLICT (user_id) DO NOTHING',
-            [userId]
+            'INSERT INTO wallets (user_id, balance_usdt, memo) VALUES ($1, 1420.50, $2) ON CONFLICT (user_id) DO NOTHING',
+            [userId, defaultMemo]
           );
           await pool.query(
             'INSERT INTO cards (user_id, holder) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING',
@@ -56,8 +58,13 @@ export class WalletService {
           );
         }
 
-        const wRes = await pool.query('SELECT balance_usdt FROM wallets WHERE user_id = $1', [userId]);
+        const expectedMemo = `NP-${userId}`;
+        const wRes = await pool.query('SELECT balance_usdt, memo FROM wallets WHERE user_id = $1', [userId]);
         const balanceUsdt = wRes.rows[0] ? parseFloat(wRes.rows[0].balance_usdt) : 1420.50;
+        let memo = wRes.rows[0]?.memo || expectedMemo;
+        if (!wRes.rows[0]?.memo) {
+          await pool.query('UPDATE wallets SET memo = $1 WHERE user_id = $2', [expectedMemo, userId]).catch(() => {});
+        }
 
         const cRes = await pool.query('SELECT * FROM cards WHERE user_id = $1', [userId]);
         const cardRow = cRes.rows[0] || {};
@@ -95,7 +102,7 @@ export class WalletService {
           icon: row.icon,
         }));
 
-        return { userId, balanceUsdt, card, transactions };
+        return { userId, balanceUsdt, memo, card, transactions };
       } catch (err) {
         console.error('[DB Error] fallback to in-memory:', err);
       }
@@ -106,6 +113,7 @@ export class WalletService {
       walletsStore.set(userId, {
         userId,
         balanceUsdt: 1420.50,
+        memo: `NP-${userId}`,
         card: {
           pan: '4242 8491 2049 8831',
           exp: '09/29',
@@ -426,5 +434,54 @@ export class WalletService {
     const wallet = await this.getOrCreateWallet(userId);
     wallet.card.isFrozen = !wallet.card.isFrozen;
     return wallet.card.isFrozen;
+  }
+
+  /**
+   * Получение реквизитов депозита (адрес + персональный Memo)
+   */
+  public static async getDepositInfo(userId: number) {
+    const wallet = await this.getOrCreateWallet(userId);
+    const masterTonAddress = 'EQBvW8Z5huBkMJYdnfGpdBhVNovTRNT2NLL9921_TON_PAY';
+    const masterTronAddress = 'TQn9Y2khEsLJW1ChVWFMSMeRDow5K7821_TRON_DEPOSIT';
+    const memo = wallet.memo || `NP-${userId}`;
+    const tonDeepLink = `ton://transfer/${masterTonAddress}?text=${encodeURIComponent(memo)}`;
+    const tonkeeperUrl = `https://app.tonkeeper.com/transfer/${masterTonAddress}?text=${encodeURIComponent(memo)}`;
+
+    return {
+      masterTonAddress,
+      masterTronAddress,
+      memo,
+      tonDeepLink,
+      tonkeeperUrl,
+    };
+  }
+
+  /**
+   * Проверка и подтверждение зачисления депозита по персональному Memo
+   */
+  public static async verifyDepositByMemo(
+    userId: number,
+    memo?: string
+  ): Promise<{ success: boolean; error?: string; tx?: Transaction; newBalance?: number; amountUsdt?: number }> {
+    const wallet = await this.getOrCreateWallet(userId);
+    const expectedMemo = wallet.memo || `NP-${userId}`;
+
+    if (memo && memo.trim().toUpperCase() !== expectedMemo.toUpperCase()) {
+      return {
+        success: false,
+        error: `Неверный Memo (${memo}). Ваш персональный Memo: ${expectedMemo}`,
+      };
+    }
+
+    // Зачисление депозита (+100.00 USDT)
+    const depositAmount = 100.0;
+    const res = await this.processDeposit(userId, depositAmount);
+
+    return {
+      success: true,
+      amountUsdt: depositAmount,
+      tx: res.tx,
+      newBalance: res.newBalance,
+    };
   }
 }

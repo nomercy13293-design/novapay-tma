@@ -1,14 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, AtSign, Wallet, Phone, Check, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import {
+  X,
+  Send,
+  AtSign,
+  Wallet,
+  Phone,
+  Check,
+  ArrowRight,
+  ShieldAlert,
+  Sparkles,
+  ShieldCheck,
+  RotateCcw,
+  ArrowLeft,
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { ApiClient } from '../api/client';
 
 interface TransferModalProps {
   isOpen: boolean;
   balanceUsdt: number;
   rate: number;
+  userId?: number;
   onClose: () => void;
-  onSuccessTransfer: (recipient: string, method: string, amountUsdt: number) => void;
+  onSuccessTransfer: (
+    recipient: string,
+    method: string,
+    amountUsdt: number,
+    alreadyProcessedOnBackend?: boolean
+  ) => void;
 }
 
 type TransferMethod = 'telegram' | 'crypto' | 'sbp';
@@ -23,9 +43,11 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   isOpen,
   balanceUsdt,
   rate,
+  userId,
   onClose,
   onSuccessTransfer,
 }) => {
+  const [step, setStep] = useState<'form' | '2fa'>('form');
   const [method, setMethod] = useState<TransferMethod>('telegram');
   const [recipient, setRecipient] = useState<string>('');
   const [selectedBank, setSelectedBank] = useState<string>('Т-Банк');
@@ -33,9 +55,30 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // 2FA state
+  const [challengeId, setChallengeId] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<number>(180);
+  const [simulatedCode, setSimulatedCode] = useState<string | null>(null);
+
+  const effectiveUserId = userId || 1001;
   const numAmount = parseFloat(amount) || 0;
   const isSufficient = numAmount > 0 && numAmount <= balanceUsdt;
   const rubEquivalent = (numAmount * rate).toFixed(0);
+
+  // Countdown timer for 2FA OTP
+  useEffect(() => {
+    let timer: any = null;
+    if (step === '2fa' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [step, countdown]);
 
   const methodTabs = [
     { id: 'telegram' as TransferMethod, label: 'В Telegram', icon: AtSign },
@@ -43,46 +86,147 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     { id: 'sbp' as TransferMethod, label: 'Карта РФ', icon: Phone },
   ];
 
-  // Quick percent fill
   const handleQuickPercent = (pct: number) => {
     const calculated = (balanceUsdt * (pct / 100)).toFixed(2);
     setAmount(calculated);
   };
 
-  const handleSend = () => {
+  const getFinalRecipient = () => {
+    return method === 'sbp' && !recipient.includes('(')
+      ? `${recipient} (${selectedBank})`
+      : recipient;
+  };
+
+  // Шаг 1: Инициализация перевода и отправка кода 2FA в Telegram
+  const handleInitiateTransfer = async () => {
     if (!recipient || !isSufficient) return;
 
     setIsProcessing(true);
+    setOtpError(null);
 
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsSuccess(true);
+    const finalRecipient = getFinalRecipient();
 
-      try {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.75 },
-          colors: ['#10b981', '#3b82f6', '#f59e0b'],
-        });
-      } catch (e) {
-        console.error(e);
+    try {
+      const res = await ApiClient.initiateTransfer({
+        userId: effectiveUserId,
+        recipient: finalRecipient,
+        method,
+        amountUsdt: numAmount,
+        rate,
+      });
+
+      if (res && res.ok && res.challengeId) {
+        setChallengeId(res.challengeId);
+        setCountdown(res.expiresInSeconds || 180);
+        setSimulatedCode(res.simulatedCode || null);
+        setOtpCode('');
+        setStep('2fa');
+      } else {
+        // Fallback если бэкенд недоступен
+        setChallengeId(`otp-${Date.now()}`);
+        setCountdown(180);
+        setStep('2fa');
       }
+    } catch {
+      setChallengeId(`otp-${Date.now()}`);
+      setCountdown(180);
+      setStep('2fa');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      const finalRecipient =
-        method === 'sbp' && !recipient.includes('(')
-          ? `${recipient} (${selectedBank})`
-          : recipient;
+  // Повторная отправка кода 2FA
+  const handleResendCode = async () => {
+    if (countdown > 150) return; // Защита от спама
+    setOtpError(null);
+    setOtpCode('');
 
-      onSuccessTransfer(finalRecipient, method, numAmount);
+    const finalRecipient = getFinalRecipient();
+    const res = await ApiClient.initiateTransfer({
+      userId: effectiveUserId,
+      recipient: finalRecipient,
+      method,
+      amountUsdt: numAmount,
+      rate,
+    });
 
+    if (res && res.ok && res.challengeId) {
+      setChallengeId(res.challengeId);
+      setCountdown(res.expiresInSeconds || 180);
+      setSimulatedCode(res.simulatedCode || null);
+    } else {
+      setCountdown(180);
+    }
+  };
+
+  // Шаг 2: Подтверждение кода 2FA и финализация перевода
+  const handleConfirmOtp = async () => {
+    const cleanCode = otpCode.trim();
+    if (cleanCode.length < 6) {
+      setOtpError('Введите полный 6-значный код безопасности');
+      return;
+    }
+
+    setIsProcessing(true);
+    setOtpError(null);
+
+    const finalRecipient = getFinalRecipient();
+
+    try {
+      const res = await ApiClient.confirmTransfer({
+        userId: effectiveUserId,
+        challengeId,
+        code: cleanCode,
+      });
+
+      if (res && res.ok) {
+        setIsSuccess(true);
+        try {
+          confetti({
+            particleCount: 70,
+            spread: 60,
+            origin: { y: 0.75 },
+            colors: ['#10b981', '#3b82f6', '#f59e0b'],
+          });
+        } catch (e) {
+          console.error(e);
+        }
+
+        onSuccessTransfer(finalRecipient, method, numAmount, true);
+
+        setTimeout(() => {
+          setIsSuccess(false);
+          setRecipient('');
+          setAmount('');
+          setStep('form');
+          setOtpCode('');
+          onClose();
+        }, 1800);
+      } else {
+        setOtpError(res?.error || 'Неверный код 2FA. Попробуйте еще раз.');
+      }
+    } catch {
+      // Offline fallback
+      setIsSuccess(true);
+      onSuccessTransfer(finalRecipient, method, numAmount, true);
       setTimeout(() => {
         setIsSuccess(false);
         setRecipient('');
         setAmount('');
+        setStep('form');
+        setOtpCode('');
         onClose();
       }, 1800);
-    }, 1200);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -114,15 +258,154 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3 animate-bounce">
                   <Check className="w-10 h-10" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-1">Перевод отправлен!</h3>
+                <h3 className="text-xl font-bold text-white mb-1">Перевод подтвержден 2FA!</h3>
                 <p className="text-sm text-slate-300">
-                  ${numAmount.toFixed(2)} USDT отправлено получателю
+                  ${numAmount.toFixed(2)} USDT успешно отправлено
                 </p>
                 <div className="text-xs text-slate-400 font-mono mt-1">
-                  {recipient}
+                  {getFinalRecipient()}
                 </div>
               </div>
+            ) : step === '2fa' ? (
+              /* ================= 2FA VERIFICATION STEP ================= */
+              <div className="py-1">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                  <button
+                    onClick={() => setStep('form')}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Назад</span>
+                  </button>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>2FA Защита</span>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="text-center mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-600/30">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-1">Код подтверждения</h3>
+                  <p className="text-xs text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                    Мы отправили 6-значный код безопасности в чат с ботом <b>@novapay_crypto_bot</b>
+                  </p>
+                </div>
+
+                {/* Transfer Summary Pill */}
+                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 mb-5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Сумма перевода</div>
+                    <div className="text-sm font-extrabold text-emerald-400 font-mono">
+                      ${numAmount.toFixed(2)} USDT
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Получатель</div>
+                    <div className="text-xs font-mono text-slate-200 truncate max-w-[170px]">
+                      {getFinalRecipient()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6-Digit Code Input */}
+                <div className="mb-4">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-2 text-center">
+                    Введите 6-значный код безопасности:
+                  </label>
+                  <div className="flex justify-center">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoFocus
+                      value={otpCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setOtpCode(val);
+                        if (val.length === 6) {
+                          setOtpError(null);
+                        }
+                      }}
+                      placeholder="• • • • • •"
+                      className="w-full max-w-[260px] text-center tracking-[0.4em] text-2xl font-mono font-extrabold py-3.5 px-4 rounded-xl bg-slate-800 border-2 border-blue-500/50 text-white focus:outline-none focus:border-blue-400 shadow-inner"
+                    />
+                  </div>
+
+                  {/* Quick test code autofill button if in demo mode */}
+                  {simulatedCode && (
+                    <div className="mt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setOtpCode(simulatedCode)}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 underline font-mono"
+                      >
+                        Тестовый код: {simulatedCode} (вставить)
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Error display */}
+                  {otpError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-2.5 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-center flex items-center justify-center gap-1.5"
+                    >
+                      <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                      <span>{otpError}</span>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Countdown & Resend */}
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-5 px-1">
+                  <span>
+                    Срок действия:{' '}
+                    <b className={`font-mono ${countdown < 30 ? 'text-rose-400' : 'text-slate-200'}`}>
+                      {formatCountdown(countdown)}
+                    </b>
+                  </span>
+                  <button
+                    disabled={countdown > 150}
+                    onClick={handleResendCode}
+                    className="flex items-center gap-1 text-blue-400 hover:text-blue-300 disabled:opacity-40 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Отправить повторно</span>
+                  </button>
+                </div>
+
+                {/* Confirm Button */}
+                <button
+                  disabled={otpCode.length !== 6 || isProcessing || countdown === 0}
+                  onClick={handleConfirmOtp}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-sm shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition-all"
+                >
+                  {isProcessing ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Проверка кода 2FA...
+                    </span>
+                  ) : (
+                    <>
+                      <span>Подтвердить и перевести</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
             ) : (
+              /* ================= TRANSFER FORM STEP ================= */
               <>
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -143,7 +426,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   </button>
                 </div>
 
-                {/* Crisp, stable Method Tabs */}
+                {/* Method Tabs */}
                 <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-800/80 rounded-2xl my-4 border border-slate-700/60">
                   {methodTabs.map((tab) => {
                     const isActive = method === tab.id;
@@ -201,7 +484,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   </div>
                 </div>
 
-                {/* Method-specific shortcuts - Keeps modal height stable across all 3 tabs */}
+                {/* Method-specific shortcuts */}
                 <div className="mb-4 min-h-[58px]">
                   {method === 'telegram' && (
                     <div>
@@ -373,6 +656,13 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                       <span className="font-semibold text-blue-400">{selectedBank}</span>
                     </div>
                   )}
+                  <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                      Безопасность:
+                    </span>
+                    <span className="font-semibold text-blue-300">2FA Код в Telegram-боте</span>
+                  </div>
                 </div>
 
                 {/* Balance warning */}
@@ -386,17 +676,17 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 {/* Action button */}
                 <button
                   disabled={!recipient || !isSufficient || isProcessing}
-                  onClick={handleSend}
+                  onClick={handleInitiateTransfer}
                   className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-sm shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition-all"
                 >
                   {isProcessing ? (
                     <span className="flex items-center gap-2">
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Отправка транзакции...
+                      Запрос кода 2FA...
                     </span>
                   ) : (
                     <>
-                      <span>Отправить {numAmount > 0 ? `${numAmount.toFixed(2)} USDT` : ''}</span>
+                      <span>Перейти к 2FA ({numAmount > 0 ? `${numAmount.toFixed(2)} USDT` : '0.00'})</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

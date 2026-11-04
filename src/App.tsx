@@ -305,7 +305,12 @@ export default function App() {
   };
 
   // Transfer completed
-  const handleTransferSuccess = (recipient: string, method: string, amountUsdt: number) => {
+  const handleTransferSuccess = (
+    recipient: string,
+    method: string,
+    amountUsdt: number,
+    alreadyProcessedOnBackend?: boolean
+  ) => {
     const newBalance = parseFloat((balanceUsdt - amountUsdt).toFixed(2));
     setBalanceUsdt(newBalance);
 
@@ -318,14 +323,16 @@ export default function App() {
       tg?.HapticFeedback?.notificationOccurred('success');
     } catch {}
 
-    // Вызываем бэкенд для отправки уведомления в Telegram
-    ApiClient.transfer({
-      userId,
-      recipient,
-      method,
-      amountUsdt,
-      rate,
-    });
+    // Если бэкенд еще не обработал перевод в 2FA confirm, отправляем прямой запрос
+    if (!alreadyProcessedOnBackend) {
+      ApiClient.transfer({
+        userId,
+        recipient,
+        method,
+        amountUsdt,
+        rate,
+      });
+    }
 
     const methodTitle =
       method === 'telegram'
@@ -506,6 +513,8 @@ export default function App() {
       {/* Deposit Modal */}
       <DepositModal
         isOpen={isDepositOpen}
+        userMemo={user.memo}
+        userId={user.id}
         onClose={() => setIsDepositOpen(false)}
         onSimulateDeposit={handleSimulateDeposit}
       />
@@ -515,6 +524,7 @@ export default function App() {
         isOpen={isTransferOpen}
         balanceUsdt={balanceUsdt}
         rate={rate}
+        userId={user.id}
         onClose={() => setIsTransferOpen(false)}
         onSuccessTransfer={handleTransferSuccess}
       />

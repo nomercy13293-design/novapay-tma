@@ -44,8 +44,12 @@ export async function initDb(): Promise<boolean> {
         CREATE TABLE IF NOT EXISTS wallets (
           user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           balance_usdt NUMERIC(18, 2) NOT NULL DEFAULT 1420.50,
+          memo VARCHAR(30),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Авто-миграция для существующих баз
+        ALTER TABLE wallets ADD COLUMN IF NOT EXISTS memo VARCHAR(30);
 
         CREATE TABLE IF NOT EXISTS cards (
           user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -80,7 +84,19 @@ export async function initDb(): Promise<boolean> {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS otp_challenges (
+          challenge_id VARCHAR(100) PRIMARY KEY,
+          user_id BIGINT NOT NULL,
+          code VARCHAR(10) NOT NULL,
+          action VARCHAR(50) NOT NULL,
+          payload JSONB NOT NULL,
+          attempts INT NOT NULL DEFAULT 0,
+          expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE INDEX IF NOT EXISTS idx_tx_user_id ON transactions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_otp_user ON otp_challenges(user_id);
       `);
 
       console.log('✅ PostgreSQL таблицы успешно синхронизированы!');

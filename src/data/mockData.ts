@@ -59,9 +59,11 @@ export function getInitialTelegramUser(): UserProfile {
       const username = tgUser.username ? `@${tgUser.username}` : `@id${tgUser.id}`;
       const avatar = tgUser.photo_url || getFallbackAvatar(fullName);
       const user: UserProfile = {
+        id: tgUser.id,
         name: fullName,
         username,
         avatar,
+        memo: `NP-${tgUser.id}`,
         isKycVerified: true,
         kycTier: 'Standard (До $15,000/мес)',
       };

@@ -14,9 +14,11 @@ export interface Transaction {
 }
 
 export interface UserProfile {
+  id?: number;
   name: string;
   username: string;
   avatar: string;
+  memo?: string;
   isKycVerified: boolean;
   kycTier: string;
 }

@@ -32,6 +32,16 @@ export interface SecurityCodePayload {
   merchant: string;
 }
 
+export interface TwoFactorOtpPayload {
+  chatId: number | string;
+  code: string;
+  action: string;
+  amountUsdt: number;
+  recipient: string;
+  method?: string;
+  expiresInMinutes?: number;
+}
+
 export class TelegramService {
   public static async makeRequest(method: string, body: Record<string, any>): Promise<any> {
     if (!config.botToken || config.botToken === 'YOUR_TELEGRAM_BOT_TOKEN_HERE') {
@@ -537,6 +547,41 @@ export class TelegramService {
       `Ваш код подтверждения: <code>${payload.code}</code>`,
       ``,
       `⚠️ <i>Никому не сообщайте этот код, даже сотрудникам банка.</i>`,
+    ].join('\n');
+
+    const res = await this.makeRequest('sendMessage', {
+      chat_id: payload.chatId,
+      text,
+      parse_mode: 'HTML',
+    });
+
+    return res.ok;
+  }
+
+  /**
+   * Одноразовый код 2FA для подтверждения переводов и критических операций
+   */
+  public static async sendTwoFactorCode(payload: TwoFactorOtpPayload): Promise<boolean> {
+    const methodDesc =
+      payload.method === 'sbp'
+        ? 'Вывод на карту СБП РФ'
+        : payload.method === 'crypto'
+        ? 'Перевод в блокчейн-сеть'
+        : 'Внутренний перевод NovaPay';
+
+    const text = [
+      `🔐 <b>Подтверждение операции (2FA)</b>`,
+      ``,
+      `Вы запросили отправку средств со счёта:`,
+      `💰 <b>Сумма:</b> ${payload.amountUsdt.toFixed(2)} USDT`,
+      `👤 <b>Получатель:</b> <code>${payload.recipient}</code>`,
+      `⚙️ <b>Тип:</b> ${methodDesc}`,
+      ``,
+      `Ваш 6-значный код безопасности:`,
+      `🔑 <code>${payload.code}</code>`,
+      ``,
+      `⏱ <i>Код действителен ${payload.expiresInMinutes || 3} мин. Нажмите на код, чтобы скопировать.</i>`,
+      `⚠️ <b>Никому не сообщайте данный код!</b> Сотрудники поддержки NovaPay никогда не запрашивают код из сообщений.`,
     ].join('\n');
 
     const res = await this.makeRequest('sendMessage', {
